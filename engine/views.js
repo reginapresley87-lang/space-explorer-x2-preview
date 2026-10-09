@@ -21,7 +21,12 @@ vec3 galaxyLook(vec2 uv, float type, float seed, vec3 armCol, vec3 coreCol, out 
   float bar = type > .5 ? exp(-pow(uv.x * 3.4, 2.) - pow(uv.y * 15., 2.)) * .9 : 0.;
   float armM = pow(s, 2.2) * smoothstep(.04, .18, r) * (.55 + .9 * smoothstep(.3, .7, n1));
   float knots = armM * smoothstep(.55, .9, n2) * 1.4;
-  float hii = armM * pow(max(vn(vec3(uv * 55., seed * 3.)), 0.), 9.) * 18.;
+  // HII regions: soft round jittered dots (pow() of lattice value noise gave square / dashed blobs on the grid axes)
+  float hii = 0.;
+  { mat2 rot = mat2(.8, -.6, .6, .8); vec2 hp = rot * uv * 55.; vec2 hi = floor(hp), hf = fract(hp);
+    for (int x = -1; x <= 1; x++) for (int y = -1; y <= 1; y++) { vec2 g = vec2(float(x), float(y)); vec3 o = h33(vec3(hi + g, seed * 3.));
+      if (o.z > .3) continue; vec2 cc = g + .2 + .6 * o.xy - hf; float rr = .12 + .16 * o.x; hii += exp(-dot(cc, cc) / (rr * rr)) * (.6 + 1.4 * o.y); } }
+  hii *= armM * 2.2;
   float dust = pow(sd, 6.) * smoothstep(.06, .2, r) * smoothstep(1., .5, r) * (.55 + .7 * n1);
   vec3 c = coreCol * (bulge + bar) * 1.3 + mix(coreCol * .7 + .15, armCol, .65) * disk * (.35 + .9 * armM * (.6 + .6 * n1)) + armCol * disk * knots + vec3(1., .3, .55) * disk * hii;
   c *= 1. - clamp(dust * .85, 0., .9) * (1. - smoothstep(.0, .08, bulge * .1));
@@ -216,7 +221,7 @@ void main(){
     float bar = 0.; if (uBar > 0.) { float c = cos(uPhase), s = sin(uPhase), bx = x.x * c + x.z * s, bz = -x.x * s + x.z * c; bar = 1.2 * exp(-(bx * bx) / (uBar * uBar) - (bz * bz + x.y * x.y * 4.) / (uBar * uBar * .08)); }
     float clump = .55 + .9 * vn(x / 420.);
     vec3 j = disk * (vec3(1., .93, .85) * .35 + vec3(.75, .85, 1.) * 1.3 * prox) * clump + (bulge + bar) * vec3(1., .78, .52);
-    j += vec3(1., .3, .5) * disk * prox * pow(vn(x / 160. + 7.), 6.) * 3.;      // HII regions along the arms
+    j += vec3(1., .3, .5) * disk * prox * smoothstep(.62, .9, vn(mat3(.8, -.36, .48, .6, .48, -.64, 0., .8, .6) * x / 160. + 7.) * .65 + vn(x / 61. + 3.) * .35) * 2.;      // HII regions along the arms
     float dn = exp(-rr / (uHr * 1.3)) * exp(-ay / (uHz * .3)) * (.25 + 1.4 * dprox);
     dn *= smoothstep(.25, .75, fbmN(x / 900., uOct)) * 1.6 + .15;
     L += j * exp(-tau) * ds; tau += dn * ds * uDustK;

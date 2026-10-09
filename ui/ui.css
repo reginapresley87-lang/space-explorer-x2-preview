@@ -50,3 +50,9 @@ body.x2-card-open #se-joy{display:none}
 /* clean sky: subtler label markers (small dot instead of ring outline) */
 #x2-labels .lab::before{width:4px;height:4px;margin-left:-2px;top:-3px;border:0;background:rgba(170,205,255,.55)}
 #x2-labels .lab.sel::before{width:12px;height:12px;margin-left:-7px;top:-7px;border:1.5px solid #ffd34d;background:none}
+.x2-seamless #x2-card .land{display:none!important}
+#x2-alt{display:none;position:absolute;left:50%;transform:translateX(-50%);top:calc(max(8px,env(safe-area-inset-top)) + 96px);padding:6px 14px;border-radius:16px;background:rgba(0,14,40,.75);border:1px solid #3b7dd8;color:#fff;font-size:15px;font-weight:600;z-index:4;pointer-events:none;white-space:nowrap}
+#x2-alt small{font-weight:400;color:#9cf;font-size:12px}
+#x2-alt.low{border-color:#e8a33a;color:#ffd58a}
+#x2-flyhint{display:none;position:absolute;left:50%;transform:translateX(-50%);bottom:calc(max(22px,env(safe-area-inset-bottom)) + 150px);padding:7px 14px;border-radius:18px;background:rgba(0,14,40,.8);border:1px solid #3b7dd8;color:#cfe6ff;font-size:13px;z-index:3;white-space:nowrap;max-width:90vw;overflow:hidden;text-overflow:ellipsis}
+#x2-flyhint button{background:#2563c9;border:0;color:#fff;font-size:15px;padding:6px 14px;border-radius:14px}

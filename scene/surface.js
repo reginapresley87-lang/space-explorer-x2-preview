@@ -163,7 +163,7 @@ export function createSurface(opts = {}) {
     for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); const k = 1 + 0.35 * n(v.x * 1.3, v.y * 1.3, v.z * 1.3) + 0.12 * n(v.x * 4, v.y * 4, v.z * 4); v.multiplyScalar(k); v.y *= 0.65; p.setXYZ(i, v.x, v.y, v.z); }
     g.computeVertexNormals(); return g; })();
   const rockMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.92, metalness: 0, flatShading: true });
-  const rocks = new THREE.InstancedMesh(rockGeo, rockMat, 320); rocks.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(320 * 3), 3); scene.add(rocks);
+  const rocks = new THREE.InstancedMesh(rockGeo, rockMat, 361); rocks.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(361 * 3), 3); scene.add(rocks);
 
   // ---------- height field ----------
   let N1 = makeNoise(1), N2 = makeNoise(2), N3 = makeNoise(3), spec = null, crK = 0, duneK = 0, R = 1, RID = 0.5;
@@ -243,6 +243,7 @@ export function createSurface(opts = {}) {
     const alt = Math.max(0, cam.y - hLowCache);
     const visit = (l, i, j) => {
       const size = ROOT / 2 ** l, mx = (i + 0.5) * size, mz = (j + 0.5) * size;
+      { const t = tiles.get(key(l, i, j)); if (t) t.used = lru; }   // keep every visited ancestor alive: an evicted parent left black holes when its kids changed
       const dx = Math.max(Math.abs(cam.x - mx) - size / 2, 0), dz = Math.max(Math.abs(cam.z - mz) - size / 2, 0), d = Math.hypot(dx, dz, alt * 0.7);
       const want = l < MAXL && d < size * 1.25;
       if (want) {
@@ -250,7 +251,9 @@ export function createSurface(opts = {}) {
         if (kids.every(([a, b]) => tiles.has(key(l + 1, a, b)))) { kids.forEach(([a, b]) => visit(l + 1, a, b)); return; }
         kids.forEach(([a, b]) => queue.push([l + 1, a, b, d]));
       }
-      const m = tile(l, i, j, l === 0); if (m) draw.push(m);
+      let m = tile(l, i, j, l === 0);
+      if (!m) { queue.pop(); m = tile(l, i, j, true); }   // never leave a hole: build the missing fallback tile right now
+      if (m) draw.push(m);
     };
     for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) visit(0, cx + a, cz + b);
     for (const t of tiles.values()) t.mesh.visible = false;
@@ -270,10 +273,15 @@ export function createSurface(opts = {}) {
   function scatterRocks(cx, cz) {
     rockCenter.set(cx, cz);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), scl = new THREE.Vector3(), ps = new THREE.Vector3(), col = new THREE.Color();
-    let rs = (Math.floor(cx * 13 + cz * 7) ^ (spec.seed || 1)) >>> 0; const rr = () => ((rs = (rs * 1664525 + 1013904223) >>> 0) / 4294967296);
+    // each rock belongs to a fixed 29 m world cell (seeded by the cell), so rocks stay put when the set is re-centred
+    const CELL = 29, N = 9, c0x = Math.floor(cx / CELL), c0z = Math.floor(cz / CELL); let rs = 0;
+    const rr = () => ((rs = (rs * 1664525 + 1013904223) >>> 0) / 4294967296);
     const sea = spec.water || spec.lava;
     for (let i = 0; i < rocks.count; i++) {
-      const x = cx + (rr() - 0.5) * 520, z = cz + (rr() - 0.5) * 520, size = (0.15 + Math.pow(rr(), 5) * 4) * spec.rocks;
+      const gx = c0x + (i % (2 * N + 1)) - N, gz = c0z + Math.floor(i / (2 * N + 1)) - N;
+      if (gz > c0z + N) { m.makeScale(0, 0, 0); rocks.setMatrixAt(i, m); continue; }
+      rs = (Math.imul(gx, 73856093) ^ Math.imul(gz, 19349663) ^ (spec.seed || 1)) >>> 0; rr(); rr();
+      const x = (gx + rr()) * CELL, z = (gz + rr()) * CELL, size = (0.15 + Math.pow(rr(), 5) * 4) * spec.rocks;
       const h = height(x, z);
       if (sea && h < sea.level + 0.5) { m.makeScale(0, 0, 0); rocks.setMatrixAt(i, m); continue; }
       ps.set(x, h + size * 0.15, z); q.setFromEuler(e.set(rr() * 0.6, rr() * 6.3, rr() * 0.6)); scl.set(size * (0.8 + rr() * 0.8), size, size * (0.8 + rr() * 0.8));

@@ -12,7 +12,7 @@ import { createPost } from './post.js';
 import { NebulaField, REAL_NEBULAE, nebulaById, nebulaeNear } from './nebulae.js';
 
 const LAND_MS = 2500, MAX_ORBIT = 3e9, J2000 = Date.UTC(2000, 0, 1, 12);
-const QUALITY = { low: { cloud: 22000, stars: 0.5, maxPR: 1.25, sky: 96, flare: 0 }, medium: { cloud: 40000, stars: 1, maxPR: 1.75, sky: 128, flare: 0 }, high: { cloud: 70000, stars: 1, maxPR: 2, sky: 256, flare: 1 } };
+const QUALITY = { low: { cloud: 22000, stars: 0.5, maxPR: 1.25, sky: 128, flare: 0 }, medium: { cloud: 40000, stars: 1, maxPR: 1.75, sky: 192, flare: 0 }, high: { cloud: 70000, stars: 1, maxPR: 2, sky: 320, flare: 1 } };
 // realistic lens: ~70 deg diagonal field of view (like a phone's main camera), whatever the screen shape
 const fovFor = aspect => 2 * Math.atan(Math.tan(35 * Math.PI / 180) / Math.sqrt(1 + aspect * aspect)) * 180 / Math.PI;
 const easeInOut = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -674,7 +674,11 @@ export async function init(opts = {}) {
         if (c.imp) { const lp = V().copy(rel).negate().applyQuaternion(gg.qi); const sn = Math.abs(lp.y) / Math.max(lp.length(), 1e-9); c.imp.material.uniforms.uEdge.value = (sn < 0.1 ? 0 : Math.min(1, (sn - 0.1) / 0.35)) * (inside ? 0 : 1); c.imp.visible = qName !== 'low' && c.imp.material.uniforms.uEdge.value > 0; }
         c.group.visible = true;
         const spiral = gg.type === 'spiral' || gg.type === 'barred';
-        if (inside && spiral && !params.has('nocube')) {
+        // the low-res ray-marched sky cube is only needed when the camera is really IN the disk; above/below it (or near the rim)
+        // the directly drawn cloud is sharper (the cube looked blocky from e.g. 45 kly above the Milky Way)
+        let inDisk = false;
+        if (inside) { const lp = V().copy(rel).negate().applyQuaternion(gg.qi); inDisk = Math.hypot(lp.x, lp.z) < gg.R * 1.05 && Math.abs(lp.y) < gg.R * 0.12; }
+        if (inDisk && spiral && !params.has('nocube')) {
           // the sky from inside: ray-marched star + dust density (refreshed after moving, one cube face per frame)
           if (!gsky.ready || gsky.g !== gg) { gsky.request(gg, camGal); gsky.step(true); skyT = now; }
           else if (!gsky.busy() && gsky.at.distanceTo(camGal) > 30 && now - skyT > 700 && fly.speed < 20000) { gsky.request(gg, camGal); skyT = now; }
@@ -821,6 +825,17 @@ export async function init(opts = {}) {
     },
     setBoost(k) { boost = clamp(+k || 1, 1, 1e6); return boost; }, getBoost: () => boost,
     land, takeOff, canLand,
+    // nearest body + metres above its surface (scale-consistent with the drawn radius, works in compressed and real scale)
+    getAltitude() {
+      if (active === 'surface' && (surfEnt || landing?.e)) { const e = surfEnt || landing.e, c = surf.camera.position;
+        return { name: e.name, id: e.id, meters: Math.max(0, c.y - surf.height(c.x, c.z)), surface: true }; }
+      if (!cam.loc.sys || !activeView) return null;
+      let best = null, bd = Infinity;
+      for (const it of activeView.items) { const d = camSys.distanceTo(it.world) - it.r; if (d < bd) { bd = d; best = it; } }
+      if (!best) return null;
+      const b = best.b, rKm = b.radiusKm ?? (b.R ? b.R * RSUN_KM : null);
+      return { name: b.name, id: b.id || null, meters: rKm ? Math.max(0, bd / best.r * rKm * 1000) : bd * K * 9.4607e15, surface: false };
+    },
     getSurface: () => ['surface', 'landing', 'takeoff'].includes(mode) ? { id: (surfEnt || landing?.e)?.id, name: (surfEnt || landing?.e)?.name, altitude: surf.state.hover, position: surf.state.pos.toArray() } : null,
     pick, screenPos, getLabels: labels,
     getState() {

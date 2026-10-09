@@ -75,7 +75,7 @@ export function initUI(SE2, opts = {}) {
   holdZoom($('#x2-in'), 0.18); holdZoom($('#x2-out'), -0.18);
   $('#x2-rand').onclick = () => { const id = SE2.randomPlanet({ from: 'here' }); if (id) { go(id); } else say('No planets found nearby'); };
   const BOOST = [1, 30, 1000, 100000];
-  $('#x2-boost').onclick = e => { const i = (BOOST.indexOf(SE2.getBoost()) + 1) % BOOST.length; SE2.setBoost(BOOST[i]); e.target.textContent = '⚡' + (BOOST[i] >= 1000 ? BOOST[i] / 1000 + 'k' : BOOST[i]) + '×'; e.target.classList.toggle('on', i > 0); sfx('tap.mp3'); };
+  $('#x2-boost').onclick = e => { const i = (BOOST.indexOf(SE2.getBoost()) + 1) % BOOST.length; SE2.setBoost(BOOST[i]); e.target.textContent = '⚡' + (BOOST[i] >= 1000 ? BOOST[i] / 1000 + 'k' : BOOST[i]) + '×'; e.target.classList.toggle('on', i > 0); sfx(i > 0 ? 'boost.mp3' : 'tap.mp3'); };
   $('#x2-bmbtn').onclick = () => {
     if (panel.style.display === 'block') { panel.style.display = 'none'; return; }
     const bms = SE2.getBookmarks(), disc = SE2.getDiscoveries().slice(-8).reverse();
@@ -148,9 +148,9 @@ export function initUI(SE2, opts = {}) {
   // ---------- title ----------
   if (!opts.autostart) {
     const t = document.createElement('div'); t.id = 'x2-title';
-    t.innerHTML = '<h1>SPACE EXPLORER X 2</h1><p>A whole procedural universe – from Earth to the galaxy clusters. Preview build.</p><button>Start exploring</button>';
+    t.innerHTML = '<h1>SPACE EXPLORER X 2</h1><p>A whole procedural universe – from Earth to the galaxy clusters. Preview build.</p><button>Start exploring</button><p style="margin-top:16px;font-size:13px;opacity:.8">Made by Nova Labs ⭐</p>';
     document.body.appendChild(t);
-    t.querySelector('button').onclick = () => { t.remove(); sfx('start.mp3'); const m = new Audio(new URL('audio/ambient.mp3', base)); m.loop = true; m.volume = 0.3; m.play().catch(() => {}); window.SE_MUSIC = m; };
+    t.querySelector('button').onclick = () => { t.remove(); sfx('start.mp3'); const m = new Audio(new URL('audio/' + (matchMedia('(pointer:fine) and (min-width:900px)').matches ? 'ambient_long.mp3' : 'ambient.mp3'), base)); m.loop = true; m.volume = 0.3; m.play().catch(() => {}); window.SE_MUSIC = m; };
   }
   window.SE2_UI = { show, say };
   return window.SE2_UI;
@@ -158,3 +158,29 @@ export function initUI(SE2, opts = {}) {
 // Clean sky by default: orbit lines start hidden every session (clears any old saved "on"), toggle in the ★ panel.
 (function x2clean(){if(!window.SE2||!SE2.setOrbits)return setTimeout(x2clean,200);const on=new URLSearchParams(location.search).has('orbits');window.__x2orb=on;SE2.setOrbits(on);
 document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-orb]');if(!b)return;window.__x2orb=!window.__x2orb;SE2.setOrbits(window.__x2orb);b.textContent=window.__x2orb?'On':'Off';},true);})();
+// Seamless descent UI: altitude readout + no Land button. Uses SE2.getAltitude() -> {name, meters} when the engine provides it;
+// falls back to the surface altitude. Set window.X2_SEAMLESS=false to bring the Land button back.
+(function x2alt(){if(!window.SE2)return setTimeout(x2alt,200);const r=document.getElementById('x2-hud');if(!r)return setTimeout(x2alt,200);
+if(window.X2_SEAMLESS!==false)document.documentElement.classList.add('x2-seamless');
+const A=document.createElement('div');A.id='x2-alt';r.parentNode.appendChild(A);
+const fmt=m=>m<1000?Math.round(m)+' m':m<1e6?(m/1000).toFixed(m<1e4?1:0)+' km':Math.round(m/1000).toLocaleString()+' km';
+setInterval(()=>{let a=null;try{a=SE2.getAltitude?SE2.getAltitude():(()=>{const s=SE2.getSurface&&SE2.getSurface();return s?{name:s.name,meters:s.altitude}:null})()}catch(e){}
+if(a&&isFinite(a.meters)&&a.meters<5e7){A.style.display='block';A.innerHTML=`<span>⬇</span> ${fmt(Math.max(0,a.meters))}<small>${a.name?' above '+a.name.replace(/[<>&]/g,''):''}</small>`;A.classList.toggle('low',a.meters<2000);}else A.style.display='none';},150);})();
+
+// Wind near the ground: fades in below 20 km, louder closer to the surface. Starts after the first tap (phone audio rule).
+(()=>{const W=new Audio(new URL('../audio/wind.mp3',import.meta.url));W.loop=true;W.volume=0;let on=false,v=0;
+addEventListener('pointerdown',()=>{if(!on){on=true;W.play().catch(()=>{on=false;});}},{capture:true});
+setInterval(()=>{let m=null;try{const S=window.SE2;const a=S&&(S.getAltitude?S.getAltitude():(S.getSurface&&(s=>s&&{meters:s.altitude})(S.getSurface())));m=a&&isFinite(a.meters)?a.meters:null;if(a&&(a.kind==='star'||a.atmosphere===false||/^(moon|mercury|phobos|deimos|ceres|pluto|charon|callisto|ganymede|europa|io)$/i.test(a.name||'')))m=null;}catch(e){}
+const target=m==null||m>20000?0:0.5*Math.pow(1-Math.max(m,0)/20000,1.5);v+=(target-v)*0.15;W.volume=Math.min(1,Math.max(0,v));},100);})();
+// "Fly down" hint near a planet. Button calls SE2.flyDown(id) if the engine has it; otherwise it's a text hint only.
+(function x2fd(){if(!window.SE2||!document.getElementById('x2-hud'))return setTimeout(x2fd,200);
+const H=document.createElement('div');H.id='x2-flyhint';document.getElementById('x2-hud').parentNode.appendChild(H);let last='';
+setInterval(()=>{let a=null;try{a=SE2.getAltitude&&SE2.getAltitude()}catch(e){}
+const star=a&&(a.kind==='star'||a.star===true);const show=a&&!star&&!a.surface&&a.meters>0&&a.meters<2e7&&a.name;if(!show){H.style.display='none';last='';return;}
+const nm=a.name.replace(/[<>&]/g,''),can=!!SE2.flyDown,k=nm+can;H.style.display='block';
+if(k!==last){last=k;H.innerHTML=can?`<button>⬇ ${a.gas||a.kind==='gas'?'Dive into the clouds of':'Fly down to'} ${nm}</button>`:`⬇ Keep flying toward ${nm} to reach the surface`;
+const b=H.querySelector('button');if(b)b.onclick=()=>{try{window.SE_SFX&&SE_SFX('fly.mp3')}catch(e){}SE2.flyDown(a.id||nm)};}},250);})();
+// Optional support button: hidden until SUPPORT_URL is set to the Ko-fi link. The game stays free either way.
+(function sup(){const SUPPORT_URL='';if(!SUPPORT_URL)return;const t=document.querySelector('#x2-title,#se-title');if(!t)return setTimeout(sup,200);
+const a=document.createElement('a');a.href=SUPPORT_URL;a.target='_blank';a.rel='noopener';a.textContent='☕ Support Nova Labs ($5, optional)';
+a.style.cssText='margin-top:14px;padding:9px 18px;border-radius:20px;background:#ff5e5b;color:#fff;text-decoration:none;font-size:14px';t.appendChild(a);})();

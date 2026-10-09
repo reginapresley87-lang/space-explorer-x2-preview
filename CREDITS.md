@@ -1,5 +1,7 @@
 # Credits — Space Explorer X 2
 
+Made by Nova Labs ⭐
+
 Space Explorer X 2 reuses the Solar System textures, surface walker, joystick, audio and planet facts of Space Explorer (v1). Everything else is new, original work.
 
 ## Planet imagery
