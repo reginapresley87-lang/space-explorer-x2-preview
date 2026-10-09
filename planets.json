@@ -1,0 +1,1238 @@
+[
+ {
+  "name": "Sun",
+  "type": "star",
+  "radius_km": 695700,
+  "moons": 0,
+  "fact": "The Sun holds about 99.86% of all the mass in the solar system.",
+  "parent": null,
+  "distance_au": 0,
+  "day_length": {
+   "value": 25.4,
+   "unit": "days",
+   "note": "at the equator; ~35 days near the poles"
+  },
+  "day_length_hours": 609.6,
+  "year_length": {
+   "value": 230000000,
+   "unit": "years",
+   "note": "one orbit around the Milky Way's center"
+  }
+ },
+ {
+  "name": "Mercury",
+  "type": "planet",
+  "radius_km": 2439.7,
+  "moons": 0,
+  "fact": "One solar day on Mercury (sunrise to sunrise) lasts about 176 Earth days - two full Mercury years.",
+  "subtype": "terrestrial",
+  "parent": null,
+  "distance_au": 0.387,
+  "day_length": {
+   "value": 58.65,
+   "unit": "days"
+  },
+  "day_length_hours": 1407.6,
+  "year_length": {
+   "value": 87.97,
+   "unit": "days"
+  },
+  "year_length_days": 87.97,
+  "orbits": "Sun"
+ },
+ {
+  "name": "Venus",
+  "type": "planet",
+  "radius_km": 6051.8,
+  "moons": 0,
+  "fact": "Venus spins backwards and a day there is longer than its year; its thick CO2 atmosphere makes it the hottest planet at about 465 °C.",
+  "subtype": "terrestrial",
+  "parent": null,
+  "distance_au": 0.723,
+  "day_length": {
+   "value": 243.02,
+   "unit": "days"
+  },
+  "day_length_hours": 5832.48,
+  "retrograde_rotation": true,
+  "year_length": {
+   "value": 224.7,
+   "unit": "days"
+  },
+  "year_length_days": 224.7,
+  "orbits": "Sun"
+ },
+ {
+  "name": "Earth",
+  "type": "planet",
+  "radius_km": 6371.0,
+  "moons": 1,
+  "fact": "Earth is the densest planet in the solar system and the only known world with liquid water oceans on its surface.",
+  "subtype": "terrestrial",
+  "parent": null,
+  "distance_au": 1.0,
+  "day_length": {
+   "value": 23.93,
+   "unit": "hours"
+  },
+  "day_length_hours": 23.93,
+  "year_length": {
+   "value": 365.26,
+   "unit": "days"
+  },
+  "year_length_days": 365.26,
+  "orbits": "Sun"
+ },
+ {
+  "name": "Moon",
+  "type": "moon",
+  "radius_km": 1737.4,
+  "moons": 0,
+  "fact": "The Moon drifts about 3.8 cm farther from Earth every year.",
+  "parent": "Earth",
+  "distance_km_from_parent": 384400,
+  "day_length": {
+   "value": 27.32,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 655.68,
+  "year_length": {
+   "value": 27.32,
+   "unit": "days",
+   "note": "orbit around Earth"
+  },
+  "year_length_days": 27.32
+ },
+ {
+  "name": "Mars",
+  "type": "planet",
+  "radius_km": 3389.5,
+  "moons": 2,
+  "fact": "Mars hosts Olympus Mons, a volcano about 22 km tall - roughly two and a half times the height of Mount Everest.",
+  "subtype": "terrestrial",
+  "parent": null,
+  "distance_au": 1.524,
+  "day_length": {
+   "value": 24.62,
+   "unit": "hours"
+  },
+  "day_length_hours": 24.62,
+  "year_length": {
+   "value": 686.98,
+   "unit": "days"
+  },
+  "year_length_days": 686.98,
+  "orbits": "Sun"
+ },
+ {
+  "name": "Phobos",
+  "type": "moon",
+  "radius_km": 11.1,
+  "moons": 0,
+  "fact": "Phobos orbits just 6,000 km above Mars and is slowly spiraling inward; in about 50 million years it will crash or break up into a ring.",
+  "parent": "Mars",
+  "distance_km_from_parent": 9376,
+  "day_length": {
+   "value": 0.319,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 7.66,
+  "year_length": {
+   "value": 0.319,
+   "unit": "days",
+   "note": "orbit around Mars"
+  },
+  "year_length_days": 0.319
+ },
+ {
+  "name": "Deimos",
+  "type": "moon",
+  "radius_km": 6.2,
+  "moons": 0,
+  "fact": "Deimos is so small that its escape velocity is only about 5.6 m/s - a hard jump could almost launch you into space.",
+  "parent": "Mars",
+  "distance_km_from_parent": 23463,
+  "day_length": {
+   "value": 1.263,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 30.31,
+  "year_length": {
+   "value": 1.263,
+   "unit": "days",
+   "note": "orbit around Mars"
+  },
+  "year_length_days": 1.263
+ },
+ {
+  "name": "Jupiter",
+  "type": "planet",
+  "radius_km": 69911,
+  "moons": 115,
+  "fact": "Jupiter's Great Red Spot is a storm wider than Earth that has been observed for over 150 years.",
+  "subtype": "gas giant",
+  "parent": null,
+  "distance_au": 5.203,
+  "day_length": {
+   "value": 9.93,
+   "unit": "hours"
+  },
+  "day_length_hours": 9.93,
+  "year_length": {
+   "value": 11.86,
+   "unit": "years"
+  },
+  "year_length_days": 4331.86,
+  "moons_modelled": 9,
+  "small_moons": 106,
+  "orbits": "Sun"
+ },
+ {
+  "name": "Amalthea",
+  "type": "moon",
+  "radius_km": 83.5,
+  "moons": 0,
+  "fact": "Amalthea is a lumpy 250 × 146 × 128 km moon, one of the reddest objects in the solar system, and so low in density it is probably a rubble pile.",
+  "parent": "Jupiter",
+  "distance_km_from_parent": 181366,
+  "day_length": {
+   "value": 0.498,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 11.95,
+  "year_length": {
+   "value": 0.498,
+   "unit": "days",
+   "note": "orbit around Jupiter"
+  },
+  "year_length_days": 0.498
+ },
+ {
+  "name": "Thebe",
+  "type": "moon",
+  "radius_km": 49.3,
+  "moons": 0,
+  "fact": "Thebe was discovered in 1979 in Voyager 1 images; its dust helps feed Jupiter's faint Thebe gossamer ring.",
+  "parent": "Jupiter",
+  "distance_km_from_parent": 221889,
+  "day_length": {
+   "value": 0.675,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 16.2,
+  "year_length": {
+   "value": 0.675,
+   "unit": "days",
+   "note": "orbit around Jupiter"
+  },
+  "year_length_days": 0.675
+ },
+ {
+  "name": "Io",
+  "type": "moon",
+  "radius_km": 1821.6,
+  "moons": 0,
+  "fact": "Io is the most volcanically active world in the solar system, with hundreds of active volcanoes.",
+  "parent": "Jupiter",
+  "distance_km_from_parent": 421700,
+  "day_length": {
+   "value": 1.77,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 42.48,
+  "year_length": {
+   "value": 1.77,
+   "unit": "days",
+   "note": "orbit around Jupiter"
+  },
+  "year_length_days": 1.77
+ },
+ {
+  "name": "Europa",
+  "type": "moon",
+  "radius_km": 1560.8,
+  "moons": 0,
+  "fact": "Beneath Europa's icy crust lies a salty ocean that may hold more water than all of Earth's oceans.",
+  "parent": "Jupiter",
+  "distance_km_from_parent": 671100,
+  "day_length": {
+   "value": 3.55,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 85.2,
+  "year_length": {
+   "value": 3.55,
+   "unit": "days",
+   "note": "orbit around Jupiter"
+  },
+  "year_length_days": 3.55
+ },
+ {
+  "name": "Ganymede",
+  "type": "moon",
+  "radius_km": 2634.1,
+  "moons": 0,
+  "fact": "Ganymede is the largest moon in the solar system - bigger than Mercury - and the only moon with its own magnetic field.",
+  "parent": "Jupiter",
+  "distance_km_from_parent": 1070400,
+  "day_length": {
+   "value": 7.15,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 171.6,
+  "year_length": {
+   "value": 7.15,
+   "unit": "days",
+   "note": "orbit around Jupiter"
+  },
+  "year_length_days": 7.15
+ },
+ {
+  "name": "Callisto",
+  "type": "moon",
+  "radius_km": 2410.3,
+  "moons": 0,
+  "fact": "Callisto's ancient surface is among the most heavily cratered in the solar system.",
+  "parent": "Jupiter",
+  "distance_km_from_parent": 1882700,
+  "day_length": {
+   "value": 16.69,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 400.56,
+  "year_length": {
+   "value": 16.69,
+   "unit": "days",
+   "note": "orbit around Jupiter"
+  },
+  "year_length_days": 16.69
+ },
+ {
+  "name": "Himalia",
+  "type": "moon",
+  "radius_km": 69.8,
+  "moons": 0,
+  "fact": "Himalia, found in 1904, is Jupiter's largest irregular moon - probably a captured asteroid that shattered into a family of smaller moons.",
+  "parent": "Jupiter",
+  "distance_km_from_parent": 11460000,
+  "day_length": {
+   "value": 7.78,
+   "unit": "hours"
+  },
+  "day_length_hours": 7.78,
+  "year_length": {
+   "value": 250.6,
+   "unit": "days",
+   "note": "orbit around Jupiter"
+  },
+  "year_length_days": 250.6,
+  "irregular": true
+ },
+ {
+  "name": "Elara",
+  "type": "moon",
+  "radius_km": 40.0,
+  "moons": 0,
+  "fact": "Elara, discovered in 1905, belongs to the Himalia group of moons that share similar distant, tilted orbits.",
+  "parent": "Jupiter",
+  "distance_km_from_parent": 11740000,
+  "day_length": {
+   "value": null,
+   "unit": "hours",
+   "note": "not well measured"
+  },
+  "day_length_hours": null,
+  "year_length": {
+   "value": 259.6,
+   "unit": "days",
+   "note": "orbit around Jupiter"
+  },
+  "year_length_days": 259.6,
+  "irregular": true
+ },
+ {
+  "name": "Pasiphae",
+  "type": "moon",
+  "radius_km": 28.9,
+  "moons": 0,
+  "fact": "Pasiphae orbits Jupiter backwards from about 23 million km away, taking over two years to go around once.",
+  "parent": "Jupiter",
+  "distance_km_from_parent": 23620000,
+  "day_length": {
+   "value": null,
+   "unit": "hours",
+   "note": "not well measured"
+  },
+  "day_length_hours": null,
+  "year_length": {
+   "value": 743.6,
+   "unit": "days",
+   "note": "orbit around Jupiter, retrograde"
+  },
+  "year_length_days": 743.6,
+  "retrograde_orbit": true,
+  "irregular": true
+ },
+ {
+  "name": "Saturn",
+  "type": "planet",
+  "radius_km": 58232,
+  "moons": 293,
+  "fact": "Saturn's average density is lower than water's, and its main rings span about 280,000 km across yet are typically only about 10 m thick.",
+  "subtype": "gas giant",
+  "parent": null,
+  "distance_au": 9.537,
+  "day_length": {
+   "value": 10.66,
+   "unit": "hours"
+  },
+  "day_length_hours": 10.66,
+  "year_length": {
+   "value": 29.46,
+   "unit": "years"
+  },
+  "year_length_days": 10760.26,
+  "moons_modelled": 13,
+  "small_moons": 280,
+  "orbits": "Sun"
+ },
+ {
+  "name": "Prometheus",
+  "type": "moon",
+  "radius_km": 43.1,
+  "moons": 0,
+  "fact": "Prometheus shepherds the inner edge of Saturn's narrow F ring, pulling out streamers of ice as it passes.",
+  "parent": "Saturn",
+  "distance_km_from_parent": 139380,
+  "day_length": {
+   "value": 0.613,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 14.71,
+  "year_length": {
+   "value": 0.613,
+   "unit": "days",
+   "note": "orbit around Saturn"
+  },
+  "year_length_days": 0.613
+ },
+ {
+  "name": "Pandora",
+  "type": "moon",
+  "radius_km": 40.7,
+  "moons": 0,
+  "fact": "Pandora is the outer shepherd moon of Saturn's F ring and is covered in craters softened by fine icy dust.",
+  "parent": "Saturn",
+  "distance_km_from_parent": 141720,
+  "day_length": {
+   "value": 0.629,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 15.1,
+  "year_length": {
+   "value": 0.629,
+   "unit": "days",
+   "note": "orbit around Saturn"
+  },
+  "year_length_days": 0.629
+ },
+ {
+  "name": "Epimetheus",
+  "type": "moon",
+  "radius_km": 58.1,
+  "moons": 0,
+  "fact": "Epimetheus trades orbits with its partner Janus every four years in a unique celestial do-si-do.",
+  "parent": "Saturn",
+  "distance_km_from_parent": 151410,
+  "day_length": {
+   "value": 0.694,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 16.66,
+  "year_length": {
+   "value": 0.694,
+   "unit": "days",
+   "note": "orbit around Saturn"
+  },
+  "year_length_days": 0.694
+ },
+ {
+  "name": "Janus",
+  "type": "moon",
+  "radius_km": 89.5,
+  "moons": 0,
+  "fact": "Janus and Epimetheus share almost the same orbit; every four years they swap places without ever colliding.",
+  "parent": "Saturn",
+  "distance_km_from_parent": 151460,
+  "day_length": {
+   "value": 0.695,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 16.68,
+  "year_length": {
+   "value": 0.695,
+   "unit": "days",
+   "note": "orbit around Saturn"
+  },
+  "year_length_days": 0.695
+ },
+ {
+  "name": "Mimas",
+  "type": "moon",
+  "radius_km": 198.2,
+  "moons": 0,
+  "fact": "Mimas has a giant crater, Herschel, about 130 km wide - roughly a third of the moon's own diameter.",
+  "parent": "Saturn",
+  "distance_km_from_parent": 185540,
+  "day_length": {
+   "value": 0.942,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 22.61,
+  "year_length": {
+   "value": 0.942,
+   "unit": "days",
+   "note": "orbit around Saturn"
+  },
+  "year_length_days": 0.942
+ },
+ {
+  "name": "Enceladus",
+  "type": "moon",
+  "radius_km": 252.1,
+  "moons": 0,
+  "fact": "Enceladus shoots geysers of water ice from its south pole, feeding Saturn's E ring.",
+  "parent": "Saturn",
+  "distance_km_from_parent": 238000,
+  "day_length": {
+   "value": 1.37,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 32.88,
+  "year_length": {
+   "value": 1.37,
+   "unit": "days",
+   "note": "orbit around Saturn"
+  },
+  "year_length_days": 1.37
+ },
+ {
+  "name": "Tethys",
+  "type": "moon",
+  "radius_km": 531.1,
+  "moons": 0,
+  "fact": "Tethys is almost pure water ice, with a density close to water, and the Ithaca Chasma canyon running most of the way around it.",
+  "parent": "Saturn",
+  "distance_km_from_parent": 294670,
+  "day_length": {
+   "value": 1.888,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 45.31,
+  "year_length": {
+   "value": 1.888,
+   "unit": "days",
+   "note": "orbit around Saturn"
+  },
+  "year_length_days": 1.888
+ },
+ {
+  "name": "Dione",
+  "type": "moon",
+  "radius_km": 561.4,
+  "moons": 0,
+  "fact": "Dione's bright 'wispy' streaks turned out to be ice cliffs hundreds of meters tall.",
+  "parent": "Saturn",
+  "distance_km_from_parent": 377420,
+  "day_length": {
+   "value": 2.737,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 65.69,
+  "year_length": {
+   "value": 2.737,
+   "unit": "days",
+   "note": "orbit around Saturn"
+  },
+  "year_length_days": 2.737
+ },
+ {
+  "name": "Rhea",
+  "type": "moon",
+  "radius_km": 763.8,
+  "moons": 0,
+  "fact": "Rhea, Saturn's second-largest moon, has a whisper-thin atmosphere of oxygen and carbon dioxide detected by Cassini.",
+  "parent": "Saturn",
+  "distance_km_from_parent": 527070,
+  "day_length": {
+   "value": 4.518,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 108.43,
+  "year_length": {
+   "value": 4.518,
+   "unit": "days",
+   "note": "orbit around Saturn"
+  },
+  "year_length_days": 4.518
+ },
+ {
+  "name": "Titan",
+  "type": "moon",
+  "radius_km": 2574.7,
+  "moons": 0,
+  "fact": "Titan has a thick nitrogen atmosphere and lakes and seas of liquid methane and ethane.",
+  "parent": "Saturn",
+  "distance_km_from_parent": 1221900,
+  "day_length": {
+   "value": 15.95,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 382.8,
+  "year_length": {
+   "value": 15.95,
+   "unit": "days",
+   "note": "orbit around Saturn"
+  },
+  "year_length_days": 15.95
+ },
+ {
+  "name": "Hyperion",
+  "type": "moon",
+  "radius_km": 135.0,
+  "moons": 0,
+  "fact": "Hyperion is a sponge-like moon that tumbles chaotically, so its day length is unpredictable.",
+  "parent": "Saturn",
+  "distance_km_from_parent": 1500880,
+  "day_length": {
+   "value": null,
+   "unit": "days",
+   "note": "chaotic tumbling rotation"
+  },
+  "day_length_hours": null,
+  "year_length": {
+   "value": 21.28,
+   "unit": "days",
+   "note": "orbit around Saturn"
+  },
+  "year_length_days": 21.28
+ },
+ {
+  "name": "Iapetus",
+  "type": "moon",
+  "radius_km": 734.5,
+  "moons": 0,
+  "fact": "Iapetus is two-toned - one hemisphere is dark as coal, the other bright as snow - and has an equatorial ridge up to 20 km high.",
+  "parent": "Saturn",
+  "distance_km_from_parent": 3560820,
+  "day_length": {
+   "value": 79.32,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 1903.68,
+  "year_length": {
+   "value": 79.32,
+   "unit": "days",
+   "note": "orbit around Saturn"
+  },
+  "year_length_days": 79.32
+ },
+ {
+  "name": "Phoebe",
+  "type": "moon",
+  "radius_km": 106.5,
+  "moons": 0,
+  "fact": "Phoebe orbits Saturn backwards and is probably a captured object from the outer solar system; dust from it forms Saturn's huge, faint Phoebe ring.",
+  "parent": "Saturn",
+  "distance_km_from_parent": 12947780,
+  "day_length": {
+   "value": 9.27,
+   "unit": "hours"
+  },
+  "day_length_hours": 9.27,
+  "year_length": {
+   "value": 550.3,
+   "unit": "days",
+   "note": "orbit around Saturn, retrograde"
+  },
+  "year_length_days": 550.3,
+  "retrograde_orbit": true,
+  "irregular": true
+ },
+ {
+  "name": "Uranus",
+  "type": "planet",
+  "radius_km": 25362,
+  "moons": 29,
+  "fact": "Uranus is tipped over by about 98°, so it rolls around the Sun on its side.",
+  "subtype": "ice giant",
+  "parent": null,
+  "distance_au": 19.19,
+  "day_length": {
+   "value": 17.24,
+   "unit": "hours"
+  },
+  "day_length_hours": 17.24,
+  "retrograde_rotation": true,
+  "year_length": {
+   "value": 84.01,
+   "unit": "years"
+  },
+  "year_length_days": 30684.65,
+  "moons_modelled": 14,
+  "small_moons": 15,
+  "orbits": "Sun"
+ },
+ {
+  "name": "Bianca",
+  "type": "moon",
+  "radius_km": 25.7,
+  "moons": 0,
+  "fact": "Bianca, found by Voyager 2 in 1986, is named after a character in Shakespeare's The Taming of the Shrew.",
+  "parent": "Uranus",
+  "distance_km_from_parent": 59170,
+  "day_length": {
+   "value": 0.435,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 10.44,
+  "year_length": {
+   "value": 0.435,
+   "unit": "days",
+   "note": "orbit around Uranus"
+  },
+  "year_length_days": 0.435
+ },
+ {
+  "name": "Cressida",
+  "type": "moon",
+  "radius_km": 39.8,
+  "moons": 0,
+  "fact": "Cressida is one of a tightly packed group of small inner moons that could collide with Desdemona within roughly a million years.",
+  "parent": "Uranus",
+  "distance_km_from_parent": 61770,
+  "day_length": {
+   "value": 0.464,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 11.14,
+  "year_length": {
+   "value": 0.464,
+   "unit": "days",
+   "note": "orbit around Uranus"
+  },
+  "year_length_days": 0.464
+ },
+ {
+  "name": "Desdemona",
+  "type": "moon",
+  "radius_km": 32.0,
+  "moons": 0,
+  "fact": "Desdemona orbits so close to its neighbours that computer models predict it may collide with Cressida or Juliet within the next 100 million years.",
+  "parent": "Uranus",
+  "distance_km_from_parent": 62660,
+  "day_length": {
+   "value": 0.474,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 11.38,
+  "year_length": {
+   "value": 0.474,
+   "unit": "days",
+   "note": "orbit around Uranus"
+  },
+  "year_length_days": 0.474
+ },
+ {
+  "name": "Juliet",
+  "type": "moon",
+  "radius_km": 46.8,
+  "moons": 0,
+  "fact": "Juliet, discovered by Voyager 2, is an elongated moon named after Shakespeare's heroine.",
+  "parent": "Uranus",
+  "distance_km_from_parent": 64360,
+  "day_length": {
+   "value": 0.493,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 11.83,
+  "year_length": {
+   "value": 0.493,
+   "unit": "days",
+   "note": "orbit around Uranus"
+  },
+  "year_length_days": 0.493
+ },
+ {
+  "name": "Portia",
+  "type": "moon",
+  "radius_km": 67.6,
+  "moons": 0,
+  "fact": "Portia is the largest member of the Portia group, Uranus's crowded family of small inner moons.",
+  "parent": "Uranus",
+  "distance_km_from_parent": 66100,
+  "day_length": {
+   "value": 0.513,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 12.31,
+  "year_length": {
+   "value": 0.513,
+   "unit": "days",
+   "note": "orbit around Uranus"
+  },
+  "year_length_days": 0.513
+ },
+ {
+  "name": "Rosalind",
+  "type": "moon",
+  "radius_km": 36.0,
+  "moons": 0,
+  "fact": "Rosalind is named after the heroine of Shakespeare's As You Like It, like most of Uranus's moons which take names from Shakespeare and Pope.",
+  "parent": "Uranus",
+  "distance_km_from_parent": 69930,
+  "day_length": {
+   "value": 0.558,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 13.39,
+  "year_length": {
+   "value": 0.558,
+   "unit": "days",
+   "note": "orbit around Uranus"
+  },
+  "year_length_days": 0.558
+ },
+ {
+  "name": "Belinda",
+  "type": "moon",
+  "radius_km": 40.3,
+  "moons": 0,
+  "fact": "Belinda is named after the heroine of Alexander Pope's poem The Rape of the Lock, one of only a few Uranian moons not named for a Shakespeare character.",
+  "parent": "Uranus",
+  "distance_km_from_parent": 75260,
+  "day_length": {
+   "value": 0.624,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 14.98,
+  "year_length": {
+   "value": 0.624,
+   "unit": "days",
+   "note": "orbit around Uranus"
+  },
+  "year_length_days": 0.624
+ },
+ {
+  "name": "Puck",
+  "type": "moon",
+  "radius_km": 81.0,
+  "moons": 0,
+  "fact": "Puck, discovered by Voyager 2 in 1985, is the largest of Uranus's small inner moons.",
+  "parent": "Uranus",
+  "distance_km_from_parent": 86000,
+  "day_length": {
+   "value": 0.762,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 18.29,
+  "year_length": {
+   "value": 0.762,
+   "unit": "days",
+   "note": "orbit around Uranus"
+  },
+  "year_length_days": 0.762
+ },
+ {
+  "name": "Miranda",
+  "type": "moon",
+  "radius_km": 235.8,
+  "moons": 0,
+  "fact": "Miranda has a patchwork surface and the cliff Verona Rupes, about 20 km high - possibly the tallest cliff in the solar system.",
+  "parent": "Uranus",
+  "distance_km_from_parent": 129390,
+  "day_length": {
+   "value": 1.413,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 33.91,
+  "year_length": {
+   "value": 1.413,
+   "unit": "days",
+   "note": "orbit around Uranus"
+  },
+  "year_length_days": 1.413
+ },
+ {
+  "name": "Ariel",
+  "type": "moon",
+  "radius_km": 578.9,
+  "moons": 0,
+  "fact": "Ariel has the brightest and youngest-looking surface of Uranus's large moons, crossed by long canyons.",
+  "parent": "Uranus",
+  "distance_km_from_parent": 191020,
+  "day_length": {
+   "value": 2.52,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 60.48,
+  "year_length": {
+   "value": 2.52,
+   "unit": "days",
+   "note": "orbit around Uranus"
+  },
+  "year_length_days": 2.52
+ },
+ {
+  "name": "Umbriel",
+  "type": "moon",
+  "radius_km": 584.7,
+  "moons": 0,
+  "fact": "Umbriel is the darkest of Uranus's big moons, except for a mysterious bright ring on the floor of the crater Wunda.",
+  "parent": "Uranus",
+  "distance_km_from_parent": 266300,
+  "day_length": {
+   "value": 4.144,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 99.46,
+  "year_length": {
+   "value": 4.144,
+   "unit": "days",
+   "note": "orbit around Uranus"
+  },
+  "year_length_days": 4.144
+ },
+ {
+  "name": "Titania",
+  "type": "moon",
+  "radius_km": 788.4,
+  "moons": 0,
+  "fact": "Titania is Uranus's largest moon, named after the queen of the fairies in A Midsummer Night's Dream.",
+  "parent": "Uranus",
+  "distance_km_from_parent": 435910,
+  "day_length": {
+   "value": 8.706,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 208.94,
+  "year_length": {
+   "value": 8.706,
+   "unit": "days",
+   "note": "orbit around Uranus"
+  },
+  "year_length_days": 8.706
+ },
+ {
+  "name": "Oberon",
+  "type": "moon",
+  "radius_km": 761.4,
+  "moons": 0,
+  "fact": "Oberon, the outermost of Uranus's major moons, is covered in old craters, some with dark floors.",
+  "parent": "Uranus",
+  "distance_km_from_parent": 583520,
+  "day_length": {
+   "value": 13.46,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 323.04,
+  "year_length": {
+   "value": 13.46,
+   "unit": "days",
+   "note": "orbit around Uranus"
+  },
+  "year_length_days": 13.46
+ },
+ {
+  "name": "Sycorax",
+  "type": "moon",
+  "radius_km": 78.5,
+  "moons": 0,
+  "fact": "Sycorax is Uranus's largest irregular moon, a reddish captured body that orbits backwards about 12 million km out.",
+  "parent": "Uranus",
+  "distance_km_from_parent": 12179000,
+  "radius_note": "estimated (diameter ~157 km from infrared observations)",
+  "day_length": {
+   "value": 6.92,
+   "unit": "hours"
+  },
+  "day_length_hours": 6.92,
+  "year_length": {
+   "value": 1288.3,
+   "unit": "days",
+   "note": "orbit around Uranus, retrograde"
+  },
+  "year_length_days": 1288.3,
+  "retrograde_orbit": true,
+  "irregular": true
+ },
+ {
+  "name": "Neptune",
+  "type": "planet",
+  "radius_km": 24622,
+  "moons": 16,
+  "fact": "Neptune has the fastest winds in the solar system, reaching about 2,000 km/h.",
+  "subtype": "ice giant",
+  "parent": null,
+  "distance_au": 30.07,
+  "day_length": {
+   "value": 16.11,
+   "unit": "hours"
+  },
+  "day_length_hours": 16.11,
+  "year_length": {
+   "value": 164.8,
+   "unit": "years"
+  },
+  "year_length_days": 60193.2,
+  "moons_modelled": 8,
+  "small_moons": 8,
+  "orbits": "Sun"
+ },
+ {
+  "name": "Naiad",
+  "type": "moon",
+  "radius_km": 33.0,
+  "moons": 0,
+  "fact": "Naiad, Neptune's innermost moon, weaves above and below neighbouring Thalassa in a 'dance of avoidance' so they never meet.",
+  "parent": "Neptune",
+  "distance_km_from_parent": 48227,
+  "day_length": {
+   "value": 0.294,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 7.06,
+  "year_length": {
+   "value": 0.294,
+   "unit": "days",
+   "note": "orbit around Neptune"
+  },
+  "year_length_days": 0.294
+ },
+ {
+  "name": "Thalassa",
+  "type": "moon",
+  "radius_km": 41.0,
+  "moons": 0,
+  "fact": "Thalassa is a disk-shaped moon discovered by Voyager 2 in 1989.",
+  "parent": "Neptune",
+  "distance_km_from_parent": 50075,
+  "day_length": {
+   "value": 0.311,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 7.46,
+  "year_length": {
+   "value": 0.311,
+   "unit": "days",
+   "note": "orbit around Neptune"
+  },
+  "year_length_days": 0.311
+ },
+ {
+  "name": "Despina",
+  "type": "moon",
+  "radius_km": 78.0,
+  "moons": 0,
+  "fact": "Despina orbits just inside Neptune's Le Verrier ring and may act as its shepherd.",
+  "parent": "Neptune",
+  "distance_km_from_parent": 52526,
+  "day_length": {
+   "value": 0.335,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 8.04,
+  "year_length": {
+   "value": 0.335,
+   "unit": "days",
+   "note": "orbit around Neptune"
+  },
+  "year_length_days": 0.335
+ },
+ {
+  "name": "Galatea",
+  "type": "moon",
+  "radius_km": 88.0,
+  "moons": 0,
+  "fact": "Galatea's gravity is thought to keep the clumpy ring arcs of Neptune's Adams ring from spreading out.",
+  "parent": "Neptune",
+  "distance_km_from_parent": 61953,
+  "day_length": {
+   "value": 0.429,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 10.3,
+  "year_length": {
+   "value": 0.429,
+   "unit": "days",
+   "note": "orbit around Neptune"
+  },
+  "year_length_days": 0.429
+ },
+ {
+  "name": "Larissa",
+  "type": "moon",
+  "radius_km": 97.0,
+  "moons": 0,
+  "fact": "Larissa was first glimpsed in 1981 when it blocked the light of a star, then confirmed by Voyager 2 in 1989.",
+  "parent": "Neptune",
+  "distance_km_from_parent": 73548,
+  "day_length": {
+   "value": 0.555,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 13.32,
+  "year_length": {
+   "value": 0.555,
+   "unit": "days",
+   "note": "orbit around Neptune"
+  },
+  "year_length_days": 0.555
+ },
+ {
+  "name": "Proteus",
+  "type": "moon",
+  "radius_km": 210.0,
+  "moons": 0,
+  "fact": "Proteus is about as large as a body can be without its gravity pulling it into a sphere, and it is about as dark as soot.",
+  "parent": "Neptune",
+  "distance_km_from_parent": 117647,
+  "day_length": {
+   "value": 1.122,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 26.93,
+  "year_length": {
+   "value": 1.122,
+   "unit": "days",
+   "note": "orbit around Neptune"
+  },
+  "year_length_days": 1.122
+ },
+ {
+  "name": "Triton",
+  "type": "moon",
+  "radius_km": 1353.4,
+  "moons": 0,
+  "fact": "Triton orbits Neptune backwards, a sign it was probably a captured Kuiper Belt object.",
+  "parent": "Neptune",
+  "distance_km_from_parent": 354800,
+  "day_length": {
+   "value": 5.88,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 141.12,
+  "year_length": {
+   "value": 5.88,
+   "unit": "days",
+   "note": "orbit around Neptune, retrograde"
+  },
+  "year_length_days": 5.88,
+  "retrograde_orbit": true
+ },
+ {
+  "name": "Nereid",
+  "type": "moon",
+  "radius_km": 170.0,
+  "moons": 0,
+  "fact": "Nereid has one of the most eccentric orbits of any moon, swinging between about 1.4 and 9.7 million km from Neptune.",
+  "parent": "Neptune",
+  "distance_km_from_parent": 5513800,
+  "day_length": {
+   "value": 11.59,
+   "unit": "hours"
+  },
+  "day_length_hours": 11.59,
+  "year_length": {
+   "value": 360.1,
+   "unit": "days",
+   "note": "orbit around Neptune"
+  },
+  "year_length_days": 360.1,
+  "irregular": true
+ },
+ {
+  "name": "Pluto",
+  "type": "dwarf planet",
+  "radius_km": 1188.3,
+  "moons": 5,
+  "fact": "New Horizons revealed in 2015 that Pluto has a giant heart-shaped plain of nitrogen ice, Sputnik Planitia, and mountains of water ice.",
+  "parent": null,
+  "distance_au": 39.48,
+  "day_length": {
+   "value": 6.39,
+   "unit": "days"
+  },
+  "day_length_hours": 153.29,
+  "retrograde_rotation": true,
+  "year_length": {
+   "value": 247.94,
+   "unit": "years"
+  },
+  "year_length_days": 90560.09,
+  "moons_modelled": 1,
+  "small_moons": 4,
+  "orbits": "Sun"
+ },
+ {
+  "name": "Charon",
+  "type": "moon",
+  "radius_km": 606.0,
+  "moons": 0,
+  "fact": "Charon is half Pluto's size; the two are tidally locked to each other and orbit a point in space between them.",
+  "parent": "Pluto",
+  "distance_km_from_parent": 19591,
+  "day_length": {
+   "value": 6.387,
+   "unit": "days",
+   "note": "tidally locked"
+  },
+  "day_length_hours": 153.29,
+  "year_length": {
+   "value": 6.387,
+   "unit": "days",
+   "note": "orbit around Pluto"
+  },
+  "year_length_days": 6.387
+ }
+]

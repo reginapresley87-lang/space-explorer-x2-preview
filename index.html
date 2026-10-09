@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#000">
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="data:,">
+<title>Space Explorer X 2 – preview</title>
+<link rel="stylesheet" href="ui/ui.css">
+<style>
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
+  #x2-loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:#9cf;font:16px system-ui;z-index:20;pointer-events:none;transition:opacity .6s}
+  #x2-err{position:fixed;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:24px;color:#fcc;font:16px system-ui}
+</style>
+</head>
+<body>
+<div id="x2-loading">Generating the universe…</div>
+<div id="x2-err">WebGL is not available on this device/browser.</div>
+<script type="module">
+const q = new URLSearchParams(location.search);
+let SE2;
+try {
+  const { init } = await import('./engine/main.js');
+  SE2 = await init();
+} catch (e) {
+  console.error('[index] engine failed', e);
+  document.getElementById('x2-err').style.display = 'flex';
+  throw e;
+}
+const loading = document.getElementById('x2-loading');
+loading.style.opacity = 0; setTimeout(() => loading.remove(), 700);
+if (!q.has('nojoy')) SE2.enableJoystick(true);
+if (!q.has('noui')) { const { initUI } = await import('./ui/ui.js'); initUI(SE2, { autostart: q.has('autostart') }); }
+</script>
+</body>
+</html>
