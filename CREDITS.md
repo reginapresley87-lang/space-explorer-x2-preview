@@ -33,4 +33,4 @@ planets.json: NASA planetary fact sheets (nssdc.gsfc.nasa.gov) and NASA Science;
 All shaders and code are original implementations of published, freely usable techniques:
 ACES filmic curve (Stephen Hill's fitted approximation), CIE 1931 colour-matching analytic fit (Wyman, Sloan & Shirley 2013)
 for blackbody colours, Kasten–Young air-mass formula, Henyey–Greenstein / Cornette–Shanks phase functions, single-scattering
-Rayleigh + Mie atmosphere, dual-filter bloom with Karis averaging, GGX specular. No Space Engine code or assets are used.
+Rayleigh + Mie atmosphere, dual-filter bloom with Karis averaging, GGX specular.

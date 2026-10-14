@@ -139,4 +139,4 @@ addEventListener('se2:ready', async () => {
 ```
 
 ## Credits
-See `CREDITS.md`. Original code; inspired by the idea of universe-scale explorers but contains no code or assets from Space Engine.
+See `CREDITS.md`. Original code.
