@@ -1,8 +1,8 @@
 // Universe (galaxy impostors + cosmic web), galaxy particle clouds (layered sprites) and the in-galaxy sky
 // (ray-marched from the same analytic star + dust density the star streamer uses). Linear HDR output.
-import * as THREE from '../scene/vendor/three.module.min.js';
-import { NOISE } from './shaders.js';
-import { REAL_GALAXIES, universeSector, farSector, U_SECTOR, U_FAR, galaxyParticles } from './universe.js';
+import * as THREE from '../scene/vendor/three.module.min.js?v=20261014a';
+import { NOISE } from './shaders.js?v=20261014a';
+import { REAL_GALAXIES, universeSector, farSector, U_SECTOR, U_FAR, galaxyParticles } from './universe.js?v=20261014a';
 
 const TYPE_N = { spiral: 0, barred: 1, elliptical: 2, irregular: 3 };
 const MLY = 1e6;
@@ -137,8 +137,8 @@ const CLOUD_VS = `attribute vec3 color; attribute float size; uniform float uVie
     if (px < 1.5) { a *= px * px / 2.25; px = 1.5; }
     if (px > uMaxPx) { a *= uMaxPx / px; px = uMaxPx; }
     gl_PointSize = px; vC = color; vA = a; gl_Position = projectionMatrix * mv; if (a < .002) gl_Position = vec4(2., 2., 2., 1.); }`;
-export function createGalaxyCloud(g, N) {
-  const d = galaxyParticles(g, N);
+export function createGalaxyCloud(g, N, pre = null) {
+  const d = pre || galaxyParticles(g, N);   // pre: particles built by engine/galaxy_worker.js
   const group = new THREE.Group();
   const U = () => ({ uSizeK: { value: 1 }, uGain: { value: 0.22 }, uViewH: { value: 800 }, uNear0: { value: 0 }, uNear1: { value: 1e-4 }, uAlpha: { value: 1 }, uMaxPx: { value: 64 } });
   const mats = [];
@@ -232,7 +232,7 @@ void main(){
 export function createGalaxySky(renderer, size, useHalf, quality) {
   const type = useHalf ? THREE.HalfFloatType : THREE.UnsignedByteType;
   const rts = [new THREE.WebGLCubeRenderTarget(size, { type }), new THREE.WebGLCubeRenderTarget(size, { type })];
-  const mat = new THREE.ShaderMaterial({ side: THREE.BackSide, depthTest: false, depthWrite: false, defines: { SKY_N: quality === 'high' ? 80 : quality === 'medium' ? 56 : 36, OCT_MAX: 6 },
+  const mat = new THREE.ShaderMaterial({ side: THREE.BackSide, depthTest: false, depthWrite: false, defines: { SKY_N: quality === 'ultra' ? 110 : quality === 'high' ? 80 : quality === 'medium' ? 56 : 36, OCT_MAX: 6 },
     uniforms: { uCam: { value: new THREE.Vector3() }, uQi: { value: new THREE.Matrix3() }, uR: { value: 1 }, uHr: { value: 1 }, uHz: { value: 1 }, uRb: { value: 1 }, uBar: { value: 0 }, uPhase: { value: 0 },
       uTanP: { value: 1 }, uArms: { value: 4 }, uGain: { value: 2.2e-5 }, uDustK: { value: 7e-4 }, uOct: { value: quality === 'low' ? 3 : quality === 'medium' ? 4 : 6 } },
     vertexShader: `varying vec3 vD; void main(){ vD = position; gl_Position = projectionMatrix * viewMatrix * vec4(position, 1.); }`, fragmentShader: SKY_FS });
@@ -242,7 +242,7 @@ export function createGalaxySky(renderer, size, useHalf, quality) {
   const cams = cc.children;
   let front = 0, face = -1, job = null;
   const sky = {
-    texture: () => rts[front].texture, ready: false, busy: () => face >= 0,
+    texture: () => rts[front].texture, ready: false, busy: () => face >= 0, job: () => job && job.g,
     // start a refresh (rendered one face per frame into the back buffer, then swapped)
     request(g, camGal) {
       const u = mat.uniforms; u.uCam.value.copy(camGal); u.uQi.value.setFromMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(g.qi));

@@ -6,9 +6,8 @@
 <meta name="theme-color" content="#000">
 <meta name="robots" content="noindex,nofollow">
 <link rel="icon" href="data:,">
-<script>window.X2_SEAMLESS = false; // fly-down not ready in this release: keep the Land button</script>
 <title>Space Explorer X 2 – preview</title>
-<link rel="stylesheet" href="ui/ui.css">
+<link rel="stylesheet" href="ui/ui.css?v=20261014a">
 <style>
   html,body{margin:0;height:100%;background:#000;overflow:hidden;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
   #x2-loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:#9cf;font:16px system-ui;z-index:20;pointer-events:none;transition:opacity .6s}
@@ -18,11 +17,12 @@
 <body>
 <div id="x2-loading">Generating the universe…</div>
 <div id="x2-err">WebGL is not available on this device/browser.</div>
+<script>window.X2_SEAMLESS = true;   // seamless fly-down: no Land button, fly straight into planets</script>
 <script type="module">
 const q = new URLSearchParams(location.search);
 let SE2;
 try {
-  const { init } = await import('./engine/main.js');
+  const { init } = await import('./engine/main.js?v=20261014a');
   SE2 = await init();
 } catch (e) {
   console.error('[index] engine failed', e);
@@ -32,7 +32,7 @@ try {
 const loading = document.getElementById('x2-loading');
 loading.style.opacity = 0; setTimeout(() => loading.remove(), 700);
 if (!q.has('nojoy')) SE2.enableJoystick(true);
-if (!q.has('noui')) { const { initUI } = await import('./ui/ui.js'); initUI(SE2, { autostart: q.has('autostart') }); }
+if (!q.has('noui')) { const { initUI } = await import('./ui/ui.js?v=20261014a'); initUI(SE2, { autostart: q.has('autostart') }); }
 </script>
 </body>
 </html>

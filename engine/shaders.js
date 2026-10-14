@@ -23,7 +23,9 @@ vec2 craters(vec3 p, float dens){ vec3 i = floor(p), f = fract(p); float h = 0.,
 `;
 // sun reaching a point through an atmosphere with vertical optical depth uTau (Kasten-Young air mass)
 const ATMO_TRANS = `vec3 sunTrans(vec3 tau, float mu){ if (dot(tau, tau) < 1e-8) return vec3(1.); float m = clamp(mu, -.2, 1.);
-  float am = 1. / (max(m, 0.) + .50572 * pow(max(96.07995 - degrees(acos(m)), .5), -1.6364)); return exp(-tau * min(am, 40.)); }`;
+  float am = 1. / (max(m, 0.) + .50572 * pow(max(96.07995 - degrees(acos(m)), .5), -1.6364)); vec3 dir = exp(-tau * min(am, 40.));
+  float th = smoothstep(1., 3., (tau.x + tau.y + tau.z) / 3.);   // optically thick air (Titan, Venus): light still arrives, diffused by multiple scattering
+  return th > 0. ? dir + th * (1. - dir) * smoothstep(-.15, .35, m) * .9 / (1. + .5 * tau) : dir; }`;
 const GGX = `float ggx(vec3 N, vec3 V, vec3 L, float a){ vec3 H = normalize(L + V); float nh = max(dot(N, H), 0.), nl = max(dot(N, L), 0.), nv = max(dot(N, V), 1e-3);
   float a2 = a * a, d = nh * nh * (a2 - 1.) + 1.; float D = a2 / (3.14159 * d * d); float F = .02 + .98 * pow(1. - max(dot(H, V), 0.), 5.);
   float k = a * .5; float G = nl / (nl * (1. - k) + k) * nv / (nv * (1. - k) + k); return D * F * G / (4. * nv * max(nl, 1e-3)) * nl; }`;
@@ -211,7 +213,7 @@ export const ATMO_FS = `
 #ifndef ATMO_NL
 #define ATMO_NL 4
 #endif
-uniform vec3 uPC, uS0, uS0c, uBR, uBM, uMieCol, uOz; uniform float uPRad, uTop, uHR, uHM, uG, uSunI;
+uniform vec3 uPC, uS0, uS0c, uBR, uBM, uMieCol, uOz; uniform float uPRad, uTop, uHR, uHM, uG, uSunI, uIn;
 varying vec3 vW;
 vec2 rs(vec3 o, vec3 d, float r){ float b = dot(o, d), c = dot(o, o) - r * r, h = b * b - c; if (h < 0.) return vec2(1e9, -1e9); h = sqrt(h); return vec2(-b - h, -b + h); }
 void main(){
@@ -220,20 +222,25 @@ void main(){
   vec2 tp = rs(o, d, 1.); float t0 = max(ta.x, 0.), t1 = tp.x > 0. ? min(ta.y, tp.x) : ta.y;
   vec3 Ls = normalize(uS0 - uPC); float mu = dot(d, Ls);
   float pR = .0596831 * (1. + mu * mu), g = uG, pM = .0795775 * (1. - g * g) / pow(1. + g * g - 2. * g * mu, 1.5);
-  float ds = (t1 - t0) / float(ATMO_NV); vec3 sR = vec3(0.), sM = vec3(0.), sMS = vec3(0.); float odR = 0., odM = 0.;
+  float ds = (t1 - t0) / float(ATMO_NV); vec3 sR = vec3(0.), sM = vec3(0.), sMS = vec3(0.), sD = vec3(0.); float odR = 0., odM = 0.;
   for (int i = 0; i < ATMO_NV; i++) {
     vec3 x = o + d * (t0 + (float(i) + .5) * ds); float hgt = length(x) - 1.;
     float dR = exp(-hgt / uHR) * ds, dM = exp(-hgt / uHM) * ds; odR += dR; odM += dM;
-    sMS += exp(-((uBR + uOz) * odR + uBM * 1.1 * odM)) * dR * .09 * smoothstep(-.12, .25, dot(normalize(x), Ls));
-    vec2 tl = rs(x, Ls, Rt); vec2 tpl = rs(x, Ls, .999); if (tpl.x > 0.) continue;   // planet shadow
+    vec3 Tc = exp(-((uBR + uOz) * odR + uBM * 1.1 * odM)); float day = smoothstep(-.12, .25, dot(normalize(x), Ls));
+    sMS += Tc * dR * .09 * day;
+    // thick air: diffuse multiple-scattered glow (two-stream transmission of the column above the sample)
+    vec3 tv = uBR * uHR * exp(-hgt / uHR) + uBM * uHM * exp(-hgt / uHM); float th = smoothstep(1., 3., dot(tv, vec3(.3333)));
+    if (th > 0.) sD += Tc * (dR * uBR + dM * uBM * uMieCol) * day * th / (1. + .75 * (uBR * uHR * exp(-hgt / uHR) + uBM * uHM * exp(-hgt / uHM) * (1. - uG)));
+    vec2 tl = rs(x, Ls, Rt); vec2 tpl = rs(x, Ls, .999); if (tpl.x > 0. && tpl.x < 1e8) continue;   // planet shadow (rs() returns 1e9 on a miss: that is sunlit, not shadow)
     float dl = tl.y / float(ATMO_NL), lR = 0., lM = 0.;
     for (int j = 0; j < ATMO_NL; j++) { float hh = length(x + Ls * (float(j) + .5) * dl) - 1.; lR += exp(-hh / uHR) * dl; lM += exp(-hh / uHM) * dl; }
     vec3 tau = (uBR + uOz) * (odR + lR) + uBM * 1.1 * (odM + lM);
     vec3 att = exp(-tau); sR += att * dR; sM += att * dM;
   }
-  vec3 Lin = uS0c * uSunI * (sR * uBR * pR + sM * uBM * uMieCol * pM + sMS * uBR);
+  vec3 Lin = uS0c * uSunI * (sR * uBR * pR + sM * uBM * uMieCol * pM + sMS * uBR + sD * .12) * (1. + 4. * uIn);   // uIn: camera deep inside the air (eye adapts to the sky)
   vec3 T = exp(-((uBR + uOz) * odR + uBM * 1.1 * odM));
-  gl_FragColor = vec4(Lin, dot(T, vec3(.2126, .7152, .0722)));
+  float lum = dot(Lin, vec3(.2126, .7152, .0722));
+  gl_FragColor = vec4(Lin, dot(T, vec3(.2126, .7152, .0722)) * (1. - uIn * smoothstep(.01, .12, lum)));   // a bright day sky hides the stars
 }`;
 
 // star photosphere: convection granulation (cellular), supergranulation, spots & faculae, wavelength-dependent limb darkening

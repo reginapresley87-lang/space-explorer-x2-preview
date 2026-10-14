@@ -1,25 +1,27 @@
 // Renders one star system. Bodies are positioned camera-relative in double precision (JS) every frame so the same
 // code works for the compressed layout and for true scale. Everything outputs linear HDR (see engine/post.js).
-import * as THREE from '../scene/vendor/three.module.min.js';
-import { bodyTexture, ringTexture, glowTexture } from '../scene/textures.js';
-import { PLANET_VS, PLANET_FS, TEX_VS, TEX_FS, CLOUD_FS, ATMO_VS, ATMO_FS, STAR_VS, STAR_FS, CORONA_VS, CORONA_FS, RING_VS, RING_FS, DISK_VS, DISK_FS } from './shaders.js';
-import { bodyPosition } from './sysgen.js';
+import * as THREE from '../scene/vendor/three.module.min.js?v=20261014a';
+import { bodyTexture, ringTexture, glowTexture } from '../scene/textures.js?v=20261014a';
+import { PLANET_VS, PLANET_FS, TEX_VS, TEX_FS, CLOUD_FS, ATMO_VS, ATMO_FS, STAR_VS, STAR_FS, CORONA_VS, CORONA_FS, RING_VS, RING_FS, DISK_VS, DISK_FS } from './shaders.js?v=20261014a';
+import { bodyPosition } from './sysgen.js?v=20261014a';
 
 const TYPE_ID = { rocky: 0, ocean: 1, lava: 2, ice: 3, desert: 4, gas: 5, icegiant: 5 };
 const LOD = [new THREE.SphereGeometry(1, 14, 10), new THREE.SphereGeometry(1, 32, 22), new THREE.SphereGeometry(1, 64, 44), new THREE.SphereGeometry(1, 128, 88)];
-const D2R = Math.PI / 180, SPIN = 0.02;
+const D2R = Math.PI / 180; export const SPIN = 0.02;
 export const QDEF = {
   low: { OCT_MAX: 5, ATMO_NV: 6, ATMO_NL: 2 },
   medium: { OCT_MAX: 7, ATMO_NV: 10, ATMO_NL: 3, CRATERS: 1, CLOUD_SHADOW: 1 },
   high: { OCT_MAX: 8, ATMO_NV: 16, ATMO_NL: 4, CRATERS: 1, CLOUD_SHADOW: 1 },
+  ultra: { OCT_MAX: 9, ATMO_NV: 24, ATMO_NL: 6, CRATERS: 1, CLOUD_SHADOW: 1 },
 };
 let GLOW_SOFT = null;
 const REAL_TEX = { mercury: 'mercury_2k.jpg', venus: 'venus_atmosphere_2k.jpg', earth: 'earth_day_2k.jpg', moon: 'moon_2k.jpg', mars: 'mars_2k.jpg', jupiter: 'jupiter_2k.jpg', saturn: 'saturn_2k.jpg', uranus: 'uranus_2k.jpg', neptune: 'neptune_2k.jpg' };
 const texCache = {};
+export const uploadQueue = [];   // loaded image textures: the main loop uploads one per frame (renderer.initTexture) before first use
 const loader = new THREE.TextureLoader();
 function loadReal(file, ok, fail, linear = false) {
   const key = file + (linear ? ':lin' : '');
-  if (!texCache[key]) texCache[key] = new Promise((res, rej) => loader.load(new URL('../scene/textures/' + file, import.meta.url).href, t => { t.colorSpace = linear ? THREE.NoColorSpace : THREE.SRGBColorSpace; t.anisotropy = 4; res(t); }, undefined, rej));
+  if (!texCache[key]) texCache[key] = new Promise((res, rej) => loader.load(new URL('../scene/textures/' + file, import.meta.url).href, t => { t.colorSpace = linear ? THREE.NoColorSpace : THREE.SRGBColorSpace; t.anisotropy = 4; uploadQueue.push(t); res(t); }, undefined, rej));
   texCache[key].then(ok, () => { console.warn('[SE2] texture missing, using procedural:', file); fail && fail(); });
 }
 export const texQueue = [];   // procedural canvas textures, one per frame (main loop drains it)
@@ -157,7 +159,7 @@ export function createSystemView(sys, opts = {}) {
       const am = new THREE.ShaderMaterial({ defines: { ...DEF }, vertexShader: ATMO_VS, fragmentShader: ATMO_FS, transparent: true, depthWrite: false,
         blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.SrcAlphaFactor,
         uniforms: { uPC: { value: it.wpos }, uS0: starU.uS0, uS0c: starU.uS0c, uPRad: { value: b.radiusSu }, uTop: { value: A.top }, uHR: { value: A.HR }, uHM: { value: A.HM }, uG: { value: A.g },
-          uBR: { value: new THREE.Vector3(...A.betaR) }, uBM: { value: new THREE.Vector3(A.betaM, A.betaM, A.betaM) }, uMieCol: { value: new THREE.Vector3(...A.mc) }, uOz: { value: new THREE.Vector3(...A.betaO) }, uSunI: { value: 4 } } });
+          uBR: { value: new THREE.Vector3(...A.betaR) }, uBM: { value: new THREE.Vector3(A.betaM, A.betaM, A.betaM) }, uMieCol: { value: new THREE.Vector3(...A.mc) }, uOz: { value: new THREE.Vector3(...A.betaO) }, uSunI: { value: 4 }, uIn: { value: 0 } } });
       const a = mk(LOD[2], am); a.scale.setScalar(b.radiusSu * (1 + A.top) * 1.002); a.renderOrder = 2; a.frustumCulled = false; tilt.add(a); it.atmo = a; it.A = A;
     }
     if (b.rings) {

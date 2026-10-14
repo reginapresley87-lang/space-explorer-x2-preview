@@ -1,9 +1,9 @@
 // Star level: deterministic octree-like sector streaming of stars inside the current galaxy.
 // Level k uses bigger sectors and only the intrinsically brighter classes, so far-away bright stars
 // are present without generating billions of dim ones (implied by the galaxy particle cloud).
-import * as THREE from '../scene/vendor/three.module.min.js';
-import { hash, rng, starName, tempColor, clamp } from './util.js';
-import { densityAt, MAX_DENSITY, SOL_GPOS } from './universe.js';
+import * as THREE from '../scene/vendor/three.module.min.js?v=20261014a';
+import { hash, rng, starName, tempColor, clamp } from './util.js?v=20261014a';
+import { densityAt, MAX_DENSITY, SOL_GPOS } from './universe.js?v=20261014a';
 
 export const LEVELS = [
   { size: 12, rad: 2, cap: 40, classes: [['M', 0.0028], ['K', 0.0004], ['WD', 0.0004]] },
@@ -163,7 +163,7 @@ export class StarField {
     const g = this.galaxy; if (!g) return;
     const t0 = performance.now();
     for (const l of this.levels) {
-      const S = l.lv.size, R = Math.max(1, Math.round(l.lv.rad * (this.quality < 1 && l.L < 2 ? 0.5 : 1)));
+      const S = l.lv.size, R = Math.max(1, Math.round(l.lv.rad * (this.quality < 1 && l.L < 2 ? 0.5 : this.quality > 1 && l.L < 2 ? 1.4 : 1)));
       const cx = Math.floor(camG.x / S), cy = Math.floor(camG.y / S), cz = Math.floor(camG.z / S);
       const key = `${cx}|${cy}|${cz}`;
       if (l.center === key && !l.pending) continue;

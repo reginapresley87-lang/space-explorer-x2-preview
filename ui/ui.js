@@ -18,6 +18,7 @@ export function initUI(SE2, opts = {}) {
       <button class="x2b" id="x2-orb" title="Show orbit lines">◎</button>
       <button class="x2b" id="x2-real" title="Real scale: true sizes and distances">📏</button>
       <button class="x2b" id="x2-q" title="Graphics quality">Med</button>
+      <button class="x2b" id="x2-spin" title="Orbit around the planet">🔄</button>
     </div>
     <div id="x2-card"></div>
     <div id="x2-panel" class="panel"></div>
@@ -48,9 +49,9 @@ export function initUI(SE2, opts = {}) {
     card.querySelector('.goto').onclick = () => go(i.id);
     const L = card.querySelector('.land'); if (L) L.onclick = () => { sfx('land.mp3'); SE2.land(i.id); };
     card.querySelector('.bm').onclick = e => { if (bm) SE2.removeBookmark(i.id); else { SE2.addBookmark(i.id); say('★ Bookmarked ' + i.name); } show(i.id); };
-    card.querySelectorAll('[data-id]').forEach(b => b.onclick = () => { sfx('tap.mp3'); SE2.select(b.dataset.id); });
+    card.querySelectorAll('[data-id]').forEach(b => b.onclick = () => { sfx('ui_tap.mp3'); SE2.select(b.dataset.id); });
   }
-  addEventListener('se2:selected', e => { sfx('open.mp3'); show(e.detail.id); });
+  addEventListener('se2:selected', e => { sfx('ui_open.mp3'); show(e.detail.id); });
   addEventListener('se2:discovered', e => say('✨ Discovered: ' + e.detail.name));
 
   // ---------- search ----------
@@ -86,18 +87,21 @@ export function initUI(SE2, opts = {}) {
     panel.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { panel.style.display = 'none'; go(b.dataset.go); });
     panel.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { SE2.removeBookmark(b.dataset.rm); panel.style.display = 'none'; $('#x2-bmbtn').click(); });
   };
-  const realBtn = $('#x2-real'), qBtn = $('#x2-q'), QN = { low: 'Low', medium: 'Med', high: 'High' };
+  const realBtn = $('#x2-real'), qBtn = $('#x2-q'), QN = { low: 'Low', medium: 'Med', high: 'High', ultra: 'Ultra' };
+  const isPhone=/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)||(matchMedia('(pointer:coarse)').matches&&!matchMedia('(pointer:fine)').matches);
+  const QORDER=isPhone?['low','medium','high']:['low','medium','high','ultra'];
+  (function autoUltra(){if(isPhone||localStorage.getItem('se2:quality'))return;try{const g=document.createElement('canvas').getContext('webgl');const e=g&&g.getExtension('WEBGL_debug_renderer_info');const r=e?g.getParameter(e.UNMASKED_RENDERER_WEBGL):'';if(/RTX|RX ?[67]\d{3}|Radeon Pro|Apple M[1-9] (Pro|Max|Ultra)|GTX 1(07|08)0|Arc A7/i.test(r)){setTimeout(()=>{try{SE2.setQuality('ultra');syncQ()}catch(x){}},500)}}catch(x){}})();
   const syncQ = () => { const t = SE2.getStats().tier; qBtn.textContent = QN[t] || t; };
   realBtn.onclick = () => { const on = SE2.setRealScale(!SE2.getRealScale()); realBtn.classList.toggle('on', on); say(on ? 'Real scale: true sizes and distances' : 'Compressed scale (easier to see)'); };
-  qBtn.onclick = () => { const order = ['low', 'medium', 'high'], t = SE2.getStats().tier; SE2.setQuality(order[(order.indexOf(t) + 1) % 3]); syncQ(); say('Graphics: ' + qBtn.textContent); };
+  qBtn.onclick = () => { const order = QORDER, t = SE2.getStats().tier; SE2.setQuality(order[(order.indexOf(t) + 1) % order.length]); syncQ(); say('Graphics: ' + qBtn.textContent); };
   const orbBtn = $('#x2-orb'); orbBtn.classList.toggle('on', SE2.getOrbits());
   orbBtn.onclick = () => { const on = SE2.setOrbits(!SE2.getOrbits()); orbBtn.classList.toggle('on', on); say(on ? 'Orbit lines on' : 'Orbit lines off'); };
   setTimeout(syncQ, 0); realBtn.classList.toggle('on', SE2.getRealScale());
   $('#x2-takeoff').onclick = () => { sfx('takeoff.mp3'); SE2.takeOff(); };
-  $('#x2-credits').onclick = () => window.open(new URL('credits.html', base), '_blank', 'noopener');
+  $('#x2-credits').onclick = () => window.open(new URL('CREDITS.md', base), '_blank', 'noopener');
   addEventListener('se2:landed', () => { r.classList.add('landed'); card.style.display = 'none'; document.body.classList.remove('x2-card-open'); });
   addEventListener('se2:tookoff', () => r.classList.remove('landed'));
-  r.addEventListener('click', e => { if (e.target.closest('#x2-side .x2b:not(#x2-home):not(#x2-boost), #x2-bmbtn')) sfx('tap.mp3'); }, true);
+  r.addEventListener('click', e => { if (e.target.closest('#x2-side .x2b:not(#x2-home):not(#x2-boost), #x2-bmbtn')) sfx('ui_tap.mp3'); }, true);
 
   // ---------- HUD + labels ----------
   const SCALE = { universe: 'Universe', galaxy: 'Galaxy', stars: 'Star field', system: 'Star system', planet: 'Planet orbit', surface: 'Surface' };
@@ -109,11 +113,12 @@ export function initUI(SE2, opts = {}) {
     else {
       const where = st.system ? st.system.name : st.galaxy ? st.galaxy.name : 'Intergalactic space';
       const fi = st.focus && SE2.getInfo(st.focus);
-      hud.innerHTML = `<b>${SCALE[st.scale] || ''}</b> · ${esc(where)}` +
+      let _al=null;try{_al=SE2.getAltitude&&SE2.getAltitude()}catch(e){}const _nearLbl=_al&&_al.kind!=='star'&&isFinite(_al.meters)?(_al.surface||_al.meters<2000?'Surface':_al.meters<100000?(_al.kind==='gas'?'Cloud tops':_al.atmosphere===false?'Low orbit':'Atmosphere'):null):null;
+      hud.innerHTML = `<b>${_nearLbl || SCALE[st.scale] || ''}</b> · ${esc(where)}` +
         (st.mode === 'orbit' && fi ? `<br>${esc(fi.name)}: ${esc(st.distanceText)}` : st.mode === 'flight' ? `<br>Flying… ${speedTxt(st.speedLyps)}` : st.mode === 'free' ? `<br>Free flight ${speedTxt(st.speedLyps)}` : '');
     }
     const L = SE2.getLabels();
-    while (pool.length < L.length) { const d = document.createElement('div'); d.className = 'lab'; d.onclick = () => { sfx('tap.mp3'); SE2.select(d.dataset.id); }; labelsEl.appendChild(d); pool.push(d); }
+    while (pool.length < L.length) { const d = document.createElement('div'); d.className = 'lab'; d.onclick = () => { sfx('ui_tap.mp3'); SE2.select(d.dataset.id); }; labelsEl.appendChild(d); pool.push(d); }
     pool.forEach((d, i) => {
       const l = L[i]; if (!l) { d.style.display = 'none'; return; }
       d.style.display = 'block'; d.style.left = l.x + 'px'; d.style.top = l.y + 'px';
@@ -139,7 +144,7 @@ export function initUI(SE2, opts = {}) {
     const id = SE2.pick(e.clientX, e.clientY);
     if (!id) return;
     const now = performance.now();
-    if (lastTap.id === id && now - lastTap.t < 400) go(id); else { sfx('tap.mp3'); SE2.select(id); }
+    if (lastTap.id === id && now - lastTap.t < 400) go(id); else { sfx('ui_tap.mp3'); SE2.select(id); }
     lastTap = { t: now, id };
   };
   c.addEventListener('pointerup', up); c.addEventListener('pointercancel', e => { pts.delete(e.pointerId); pinch = 0; });
@@ -165,7 +170,7 @@ if(window.X2_SEAMLESS!==false)document.documentElement.classList.add('x2-seamles
 const A=document.createElement('div');A.id='x2-alt';r.parentNode.appendChild(A);
 const fmt=m=>m<1000?Math.round(m)+' m':m<1e6?(m/1000).toFixed(m<1e4?1:0)+' km':Math.round(m/1000).toLocaleString()+' km';
 setInterval(()=>{let a=null;try{a=SE2.getAltitude?SE2.getAltitude():(()=>{const s=SE2.getSurface&&SE2.getSurface();return s?{name:s.name,meters:s.altitude}:null})()}catch(e){}
-if(a&&isFinite(a.meters)&&a.meters<5e7){A.style.display='block';A.innerHTML=`<span>⬇</span> ${fmt(Math.max(0,a.meters))}<small>${a.name?' above '+a.name.replace(/[<>&]/g,''):''}</small>`;A.classList.toggle('low',a.meters<2000);}else A.style.display='none';},150);})();
+if(a&&isFinite(a.meters)&&a.meters<5e7){A.style.display='block';A.innerHTML=`<span>⬇</span> ${fmt(Math.max(0,a.meters))}<small>${a.name?' above '+a.name.replace(/[<>&]/g,''):''}</small>`;A.classList.toggle('low',a.meters<2000);if(a.meters<50000&&a.kind!=='star'){if(!window.__x2cardClosed){window.__x2cardClosed=1;const c=document.getElementById('x2-card');if(c&&getComputedStyle(c).display!='none')c.style.display='none';}}else if(a.meters>80000)window.__x2cardClosed=0;}else A.style.display='none';},150);})();
 
 // Wind near the ground: fades in below 20 km, louder closer to the surface. Starts after the first tap (phone audio rule).
 (()=>{const W=new Audio(new URL('../audio/wind.mp3',import.meta.url));W.loop=true;W.volume=0;let on=false,v=0;
@@ -176,7 +181,7 @@ const target=m==null||m>20000?0:0.5*Math.pow(1-Math.max(m,0)/20000,1.5);v+=(targ
 (function x2fd(){if(!window.SE2||!document.getElementById('x2-hud'))return setTimeout(x2fd,200);
 const H=document.createElement('div');H.id='x2-flyhint';document.getElementById('x2-hud').parentNode.appendChild(H);let last='';
 setInterval(()=>{let a=null;try{a=SE2.getAltitude&&SE2.getAltitude()}catch(e){}
-const star=a&&(a.kind==='star'||a.star===true);const show=a&&!star&&!a.surface&&a.meters>0&&a.meters<2e7&&a.name;if(!show){H.style.display='none';last='';return;}
+const star=a&&(a.kind==='star'||a.star===true);const show=a&&!star&&!a.surface&&a.meters>=50&&a.meters<2e7&&a.name;if(!show){H.style.display='none';last='';return;}
 const nm=a.name.replace(/[<>&]/g,''),can=!!SE2.flyDown,k=nm+can;H.style.display='block';
 if(k!==last){last=k;H.innerHTML=can?`<button>⬇ ${a.gas||a.kind==='gas'?'Dive into the clouds of':'Fly down to'} ${nm}</button>`:`⬇ Keep flying toward ${nm} to reach the surface`;
 const b=H.querySelector('button');if(b)b.onclick=()=>{try{window.SE_SFX&&SE_SFX('fly.mp3')}catch(e){}SE2.flyDown(a.id||nm)};}},250);})();
@@ -184,3 +189,15 @@ const b=H.querySelector('button');if(b)b.onclick=()=>{try{window.SE_SFX&&SE_SFX(
 (function sup(){const SUPPORT_URL='';if(!SUPPORT_URL)return;const t=document.querySelector('#x2-title,#se-title');if(!t)return setTimeout(sup,200);
 const a=document.createElement('a');a.href=SUPPORT_URL;a.target='_blank';a.rel='noopener';a.textContent='☕ Support Nova Labs ($5, optional)';
 a.style.cssText='margin-top:14px;padding:9px 18px;border-radius:20px;background:#ff5e5b;color:#fff;text-decoration:none;font-size:14px';t.appendChild(a);})();
+// Orbit button: slowly circles the selected planet; tap again (or drag) to stop.
+(function x2spin(){const b=document.getElementById('x2-spin');if(!b||!window.SE2)return setTimeout(x2spin,200);let on=false,raf=0,t=0;
+const tick=ts=>{if(!on)return;const dt=t?Math.min(50,ts-t):16;t=ts;try{if(SE2.orbitAround)SE2.orbitAround(dt);else if(SE2.getState().mode==='orbit')SE2.look(-dt*0.06,0)}catch(e){}raf=requestAnimationFrame(tick);};
+const set=v=>{on=v;b.classList.toggle('on',on);b.textContent=on?'⏹':'🔄';b.title=on?'Stop orbiting':'Orbit around the planet';cancelAnimationFrame(raf);t=0;if(on)raf=requestAnimationFrame(tick);
+ const T=document.getElementById('x2-toast');if(T){T.textContent=on?'Orbiting… tap ⏹ to stop':'Stopped orbiting';T.style.opacity=1;clearTimeout(T._h);T._h=setTimeout(()=>T.style.opacity=0,1500);}};
+b.onclick=()=>set(!on);window.X2_ORBIT={start:()=>set(true),stop:()=>set(false)};
+addEventListener('se2:tookoff',()=>{});addEventListener('se2:landed',()=>on&&set(false));})();
+// Safety brake: big boosts get capped automatically near a planet so you can't shoot past it.
+(function x2brake(){if(!window.SE2||!SE2.getAltitude||!SE2.getBoost)return setTimeout(x2brake,300);
+setInterval(()=>{try{if(SE2.engineBrake){if(SE2.isBraking()&&SE2.getBoost()>30){const T=document.getElementById('x2-toast');if(T&&T.style.opacity!='1'){T.textContent='Slowing down near the planet';T.style.opacity=1;clearTimeout(T._h);T._h=setTimeout(()=>T.style.opacity=0,1500);}}return;}const a=SE2.getAltitude(),b=SE2.getBoost();if(!a||!isFinite(a.meters)||b<=1)return;
+const cap=a.meters<2e6?30:a.meters<5e7?1000:Infinity;if(b>cap){SE2.setBoost(cap);const B=document.getElementById('x2-boost');if(B){B.textContent='⚡'+(cap>=1000?cap/1000+'k':cap)+'×';}
+const T=document.getElementById('x2-toast');if(T){T.textContent='Slowing down near the planet';T.style.opacity=1;clearTimeout(T._h);T._h=setTimeout(()=>T.style.opacity=0,1500);}}}catch(e){}},150);})();

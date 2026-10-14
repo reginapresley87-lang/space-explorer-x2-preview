@@ -2,8 +2,8 @@
 // craters, dunes; skirts; planet curvature), horizon-traced terrain shadows, physically based sky (Rayleigh + Mie single
 // scattering into a sky-view LUT – the same model and constants as the orbital atmosphere), aerial perspective,
 // sun disc + glare, water / lava seas, normal-lit rocks. Outputs linear HDR (tone-mapped by engine/post.js).
-import * as THREE from './vendor/three.module.min.js';
-import { makeNoise, groundTexture } from './textures.js';
+import * as THREE from './vendor/three.module.min.js?v=20261014a';
+import { makeNoise, groundTexture } from './textures.js?v=20261014a';
 
 const EYE = 1.7, ROOT = 16384;
 const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -98,11 +98,11 @@ export function createSurface(opts = {}) {
   // ---------- terrain material ----------
   const detail = groundTexture(0xffffff, 0x777777, 5); detail.colorSpace = THREE.NoColorSpace;
   const terrU = { ...shared, uDetail: { value: detail }, uGA: { value: new THREE.Color() }, uGB: { value: new THREE.Color() }, uRock: { value: new THREE.Color() }, uVeg: { value: new THREE.Color() },
-    uSeaLevel: { value: -1e6 }, uSnowLine: { value: 1e6 }, uVegAmt: { value: 0 }, uAmbK: { value: 1 } };
+    uSeaLevel: { value: -1e6 }, uSnowLine: { value: 1e6 }, uVegAmt: { value: 0 }, uAmbK: { value: 1 }, uGlow: { value: new THREE.Vector3() } };
   const terrMat = new THREE.ShaderMaterial({ uniforms: terrU,
     vertexShader: `attribute float aShadow; uniform vec3 uCamW; uniform float uCurv; varying vec3 vWp, vN; varying float vSh, vH;
       void main(){ vec4 w = modelMatrix * vec4(position, 1.); vH = w.y; vec2 d = w.xz - uCamW.xz; w.y -= dot(d, d) * uCurv; vWp = w.xyz; vN = normal; vSh = aShadow; gl_Position = projectionMatrix * viewMatrix * w; }`,
-    fragmentShader: SKYFN + `uniform sampler2D uDetail; uniform vec3 uGA, uGB, uRock, uVeg, uSunDir, uSunCol, uSkyAmb, uExt, uCamW; uniform float uSeaLevel, uSnowLine, uVegAmt, uAmbK;
+    fragmentShader: SKYFN + `uniform sampler2D uDetail; uniform vec3 uGA, uGB, uRock, uVeg, uSunDir, uSunCol, uSkyAmb, uExt, uCamW; uniform float uSeaLevel, uSnowLine, uVegAmt, uAmbK; uniform vec3 uGlow;
       varying vec3 vWp, vN; varying float vSh, vH;
       void main(){
         vec3 N = normalize(vN); float slope = 1. - N.y; float dist = length(vWp - uCamW);
@@ -120,7 +120,7 @@ export function createSurface(opts = {}) {
           vec3 r1 = cross(dpy, N), r2 = cross(N, dpx); float det = dot(dpx, r1);
           if (abs(det) > 1e-8) N = normalize(abs(det) * N - sign(det) * (dhx * r1 + dhy * r2)); }
         float NdL = max(dot(N, uSunDir), 0.);
-        vec3 lit = uSunCol * NdL * vSh + uSkyAmb * uAmbK * (.55 + .45 * N.y) * (.6 + .4 * vSh) + vec3(.0006);
+        vec3 lit = uSunCol * NdL * vSh + uSkyAmb * uAmbK * (.55 + .45 * N.y) * (.6 + .4 * vSh) + vec3(.0006) + uGlow * (.7 + .3 * (1. - N.y));   // uGlow: lava light
         vec3 c = alb * lit;
         vec3 T = exp(-uExt * dist); vec3 V = normalize(vWp - uCamW);
         c = c * T + skyL(vec3(V.x, max(V.y, .003), V.z)) * (1. - T);
@@ -138,10 +138,12 @@ export function createSurface(opts = {}) {
         vec3 V = normalize(uCamW - vWp); float dist = length(vWp - uCamW); vec2 p = vWp.xz;
         vec3 c;
         if (uLava > .5) {
-          float n = vn2(p / 7. + uTime * .05) * .6 + vn2(p / 2.3 - uTime * .08) * .4, k = abs(vn2(p / 11. + 3.) - .5);
-          float crust = smoothstep(.03, .12, k) * smoothstep(.35, .6, n);
-          vec3 hot = mix(vec3(1., .22, .02), vec3(1., .6, .2), n) * (5. + 2. * sin(uTime + n * 9.));
-          c = mix(hot, uCol * .02 * (uSunCol * max(uSunDir.y, 0.) + .02), crust);
+          // smooth molten surface: broad slow cells, fine detail fades with distance (no speckle), soft crust edges
+          float fine = 1. / (1. + dist / 60.);
+          float n = vn2(p / 18. + uTime * .04) * .6 + vn2(p / 6. - uTime * .06) * .4 * fine + .2 * (1. - fine), k = abs(vn2(p / 30. + 3.) - .5);
+          float crust = smoothstep(.06, .22, k) * smoothstep(.45, .8, n) * .85;
+          vec3 hot = mix(vec3(1., .25, .03), vec3(1., .62, .22), n) * (4. + 1.2 * sin(uTime * .8 + n * 6.));
+          c = mix(hot, uCol * .05 * (uSunCol * max(uSunDir.y, 0.) + .1) + hot * .04, crust);
         } else {
           float fall = 1. / (1. + dist / 150.); vec2 g = vec2(0.);
           for (int i = 0; i < 4; i++) { float fi = float(i); vec2 dir = vec2(cos(fi * 1.7 + .3), sin(fi * 1.7 + .3)); float k = 6.2831 / (3. + fi * 7.); float ph = dot(dir, p) * k + uTime * sqrt(9.8 * k);
@@ -345,7 +347,7 @@ export function createSurface(opts = {}) {
     terrU.uGA.value.set(spec.ground[0]); terrU.uGB.value.set(spec.ground[1]);
     terrU.uRock.value.set(spec.rock ?? spec.ground[1]).multiplyScalar(0.8);
     terrU.uVeg.value.set(spec.veg ?? 0x3a5a28); terrU.uVegAmt.value = spec.veg ? 0.85 : 0;
-    terrU.uSnowLine.value = Math.max(-1e6, Math.min(1e6, spec.snowLine ?? 1e6)); terrU.uAmbK.value = 1;
+    terrU.uSnowLine.value = Math.max(-1e6, Math.min(1e6, spec.snowLine ?? 1e6)); terrU.uAmbK.value = 1; terrU.uGlow.value.set(spec.lava ? 0.09 : 0, spec.lava ? 0.026 : 0, spec.lava ? 0.007 : 0);
     rockMat.color.set(spec.rock ?? spec.ground[1]).lerp(new THREE.Color(spec.ground[0]), 0.3);
     shared.uCurv.value = 1 / (2 * (spec.radiusM || 6.371e6));
     const liquid = spec.water || spec.lava;
@@ -417,7 +419,7 @@ export function createSurface(opts = {}) {
     return { dir: sunDir.clone(), vis, color: sunCol.clone(), elev: el };
   }
   function setSun(elevDeg, azDeg) { if (!spec) return false; spec.sunElev = elevDeg; if (azDeg != null) spec.sunAz = azDeg; setSunDir(spec.sunElev, spec.sunAz); setupLight(); clearTiles(); selectTiles(camera.position, 300); scatterRocks(rockCenter.x, rockCenter.y); return true; }
-  function setQuality(q) { quality = q; const s2 = q === 'high' ? 32 : q === 'medium' ? 24 : 16; if (s2 !== SEG) { SEG = s2; clearTiles(); } budget = q === 'low' ? 4 : 6; }
+  function setQuality(q) { quality = q; const s2 = q === 'ultra' ? 48 : q === 'high' ? 32 : q === 'medium' ? 24 : 16; if (s2 !== SEG) { SEG = s2; clearTiles(); } budget = q === 'low' ? 4 : q === 'ultra' ? 8 : 6; }
   setQuality(quality);
   const fadeColor = () => { const v = spec && spec.atmo ? shared.uSkyAmb.value : null; return v ? new THREE.Color(Math.min(1, v.x * 2), Math.min(1, v.y * 2), Math.min(1, v.z * 2)) : new THREE.Color(0, 0, 0); };
   return { _u: { shared, terrU }, scene, camera, enter, update, look, state, setQuality, setSun, sunInfo, fadeColor, height, get spec() { return spec; }, get tileCount() { return [...tiles.values()].filter(t => t.mesh.visible).length; } };

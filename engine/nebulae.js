@@ -1,9 +1,9 @@
 // Nebulae: real (Orion, Carina, Eagle, Lagoon, Helix) + procedural emission / planetary nebulae in the Milky Way's arms.
 // Rendered as ray-marched volumes (emission: H-alpha / O III, absorption: dust) in the star-field pass (ly units).
-import * as THREE from '../scene/vendor/three.module.min.js';
-import { NOISE } from './shaders.js';
-import { hash, rng, galDir, word, clamp } from './util.js';
-import { SOL_GPOS, densityAt } from './universe.js';
+import * as THREE from '../scene/vendor/three.module.min.js?v=20261014a';
+import { NOISE } from './shaders.js?v=20261014a';
+import { hash, rng, galDir, word, clamp } from './util.js?v=20261014a';
+import { SOL_GPOS, densityAt } from './universe.js?v=20261014a';
 
 const at = (l, b, d) => new THREE.Vector3(...galDir(l, b)).multiplyScalar(d).add(SOL_GPOS);
 export const REAL_NEBULAE = [
@@ -86,13 +86,45 @@ void main(){
 export class NebulaField {
   constructor(quality = 'medium') {
     this.group = new THREE.Group(); this.pool = []; this.geo = new THREE.SphereGeometry(1, 24, 16); this.setQuality(quality);
+    // drawn into a reduced-resolution buffer and blended up: a nebula filling the screen (camera inside it) ray-marches every pixel,
+    // which was the lag when entering one. Colour accumulates as dst*T + L, alpha as the product of transmittances.
+    this.scene = new THREE.Scene(); this.scene.add(this.group);
+    this.rt = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, depthBuffer: false });
+    this.blitM = new THREE.ShaderMaterial({ uniforms: { tMap: { value: this.rt.texture }, uS: { value: new THREE.Vector2(1, 1) } }, depthTest: false, depthWrite: false, transparent: true,
+      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0., 1.); }',
+      fragmentShader: 'uniform sampler2D tMap; uniform vec2 uS; varying vec2 vUv; void main(){ gl_FragColor = texture2D(tMap, vUv * uS); }',
+      blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.SrcAlphaFactor, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor });
+    const bq = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.blitM); bq.frustumCulled = false; this.blitScene = new THREE.Scene(); this.blitScene.add(bq);
+    this.ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1); this.sz = new THREE.Vector2(); this.cover = 0;
+  }
+  // scale of the offscreen buffer: half resolution normally, lower when a nebula covers much of the screen
+  render(renderer, camera) {
+    if (!this.group.visible || !this.pool.some(m => m.visible)) return;
+    const prev = renderer.getRenderTarget(); if (prev) this.sz.set(prev.width, prev.height); else renderer.getDrawingBufferSize(this.sz);
+    const base = this.q === 'ultra' ? 0.75 : this.q === 'high' ? 0.6 : this.q === 'low' ? 0.35 : 0.5, k = this.cover > 0.5 ? base * 0.7 : base;
+    // the target is allocated once at the base scale; the reduced scale (nebula covering the screen) renders into a sub-viewport
+    // instead of re-allocating the target every time a nebula crosses the threshold (that realloc was a hitch entering/leaving)
+    const W = Math.max(16, Math.round(this.sz.x * base)), H = Math.max(16, Math.round(this.sz.y * base)); if (this.rt.width !== W || this.rt.height !== H) this.rt.setSize(W, H);
+    const w = Math.max(16, Math.round(this.sz.x * k)), h = Math.max(16, Math.round(this.sz.y * k));
+    this.rt.viewport.set(0, 0, w, h); this.rt.scissor.set(0, 0, w, h); this.rt.scissorTest = true; this.blitM.uniforms.uS.value.set(w / W, h / H);
+    const ac = renderer.autoClear, cc = renderer.getClearColor(new THREE.Color()), ca = renderer.getClearAlpha();
+    renderer.autoClear = false; renderer.setRenderTarget(this.rt); renderer.setClearColor(0x000000, 1); renderer.clear(true, false, false);
+    renderer.render(this.scene, camera);
+    renderer.setRenderTarget(prev); renderer.setClearColor(cc, ca); renderer.render(this.blitScene, this.ortho); renderer.autoClear = ac;
+  }
+  // compile the (shared) nebula program ahead of time so the first nebula doesn't stall a frame
+  warm(renderer, camera) {
+    if (!this.pool.length) this.mk();
+    const m = this.pool[0], gv = this.group.visible; m.visible = true; this.group.visible = true;
+    try { renderer.compile(this.scene, camera); renderer.compile(this.blitScene, this.ortho); } catch (e) {}
+    m.visible = false; this.group.visible = gv;
   }
   setQuality(q) { this.q = q; for (const m of this.pool) { m.material.dispose(); m.removeFromParent(); } this.pool = []; }
   mk() {
     const q = this.q;
-    const mat = new THREE.ShaderMaterial({ defines: { NEB_N: q === 'high' ? 40 : q === 'medium' ? 22 : 12, OCT_MAX: 5 }, side: THREE.BackSide, transparent: true, depthWrite: false, depthTest: false,
-      blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.SrcAlphaFactor,
-      uniforms: { uC: { value: new THREE.Vector3() }, uSeed: { value: new THREE.Vector3() }, uRot: { value: new THREE.Matrix3() }, uRad: { value: 1 }, uI: { value: 0.05 }, uType: { value: 0 }, uOct: { value: q === 'high' ? 5 : q === 'medium' ? 4 : 3 } },
+    const mat = new THREE.ShaderMaterial({ defines: { NEB_N: q === 'ultra' ? 56 : q === 'high' ? 40 : q === 'medium' ? 22 : 12, OCT_MAX: 5 }, side: THREE.BackSide, transparent: true, depthWrite: false, depthTest: false,
+      blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.SrcAlphaFactor, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.SrcAlphaFactor,
+      uniforms: { uC: { value: new THREE.Vector3() }, uSeed: { value: new THREE.Vector3() }, uRot: { value: new THREE.Matrix3() }, uRad: { value: 1 }, uI: { value: 0.05 }, uType: { value: 0 }, uOct: { value: q === 'ultra' ? 6 : q === 'high' ? 5 : q === 'medium' ? 4 : 3 } },
       vertexShader: NEB_VS, fragmentShader: NEB_FS });
     const m = new THREE.Mesh(this.geo, mat); m.frustumCulled = false; m.renderOrder = 5; this.group.add(m); this.pool.push(m); return m;
   }
@@ -101,6 +133,7 @@ export class NebulaField {
     const vis = [];
     for (const n of list) { const d = n.gpos.distanceTo(camG), ang = n.R / Math.max(d, 1e-6); const px = ang * focal; if (px > 3 && d < 40000) vis.push({ n, d, px }); }
     vis.sort((a, b) => b.px - a.px); vis.length = Math.min(vis.length, 10);
+    this.cover = vis.length ? (vis[0].d < vis[0].n.R ? 1 : Math.min(1, vis[0].px / 900)) : 0;
     while (this.pool.length < vis.length) this.mk();
     const m4 = new THREE.Matrix4();
     this.pool.forEach((m, i) => {

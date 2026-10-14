@@ -1,7 +1,7 @@
 // HDR post-processing: linear half-float scene target -> bloom (dual-filter mip chain) -> auto exposure
 // (GPU log-average luminance with temporal adaptation) -> diffraction spikes, glare & lens flare -> ACES filmic
 // tone mapping -> sRGB. Quality tiers: low = tone mapping + exposure only, medium = + bloom + spikes, high = + flare + MSAA.
-import * as THREE from '../scene/vendor/three.module.min.js';
+import * as THREE from '../scene/vendor/three.module.min.js?v=20261014a';
 
 const QUAD_VS = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0., 1.); }`;
 const DOWN_FS = `uniform sampler2D uSrc; uniform vec2 uTexel; uniform float uKaris; varying vec2 vUv;
@@ -92,18 +92,20 @@ export function createPost(renderer) {
   function pass(m, target) { quad.material = m; renderer.setRenderTarget(target); renderer.render(scene1, cam); }
   function build() {
     for (const r of [...downs, ...ups]) r.dispose(); downs = []; ups = [];
-    const n = tier === 'high' ? 6 : tier === 'medium' ? 5 : 4;
+    const n = tier === 'ultra' ? 7 : tier === 'high' ? 6 : tier === 'medium' ? 5 : 4;
     let w = Math.max(1, W >> 1), h = Math.max(1, H >> 1);
     for (let i = 0; i < n; i++) { downs.push(mkRT(w, h)); if (tier !== 'low') ups.push(mkRT(w, h)); w = Math.max(1, w >> 1); h = Math.max(1, h >> 1); }
-    comp.defines = {}; if (tier !== 'low') { comp.defines.BLOOM = 1; comp.defines.SPIKES = 1; } if (tier === 'high') comp.defines.FLARE = 1;
+    comp.defines = {}; if (tier !== 'low') { comp.defines.BLOOM = 1; comp.defines.SPIKES = 1; } if (tier === 'high' || tier === 'ultra') comp.defines.FLARE = 1;
     comp.needsUpdate = true;
-    const ns = tier === 'high' && gl2 ? 4 : 0; if (scene.samples !== ns) { scene.dispose(); scene.samples = ns; }
+    const ns = !gl2 ? 0 : tier === 'ultra' ? Math.min(8, renderer.capabilities.maxSamples || 4) : tier === 'high' ? 4 : 0; if (scene.samples !== ns) { scene.dispose(); scene.samples = ns; }
+    comp.uniforms.uBloomK.value = tier === 'ultra' ? 0.075 : 0.05;   // ultra: stronger bloom
   }
   const post = {
     hdr: half, target: scene, lights: L, lightColors: LC, uniforms: comp.uniforms, adapt: adapt.uniforms,
     setSize(w, h) { w = Math.max(4, Math.round(w)); h = Math.max(4, Math.round(h)); if (w === W && h === H && downs.length) return; W = w; H = h; scene.setSize(w, h); build(); },
     setTier(t) { if (t === tier && downs.length) return; tier = t; build(); },
     resetExposure() { reset = true; },
+    samples: () => scene.samples || 0,
     getExposure: () => post._e,
     begin() { renderer.setRenderTarget(scene); },
     end(dt, time) {

@@ -1,7 +1,7 @@
 // Universe level: real Local Group galaxies + procedural galaxies streamed per sector,
 // galaxy density fields (used by the star streamer) and galaxy particle clouds.
-import * as THREE from '../scene/vendor/three.module.min.js';
-import { hash, rng, galaxyName, galDir, TAU, D2R, clamp } from './util.js';
+import * as THREE from '../scene/vendor/three.module.min.js?v=20261014a';
+import { hash, rng, galaxyName, galDir, TAU, D2R, clamp } from './util.js?v=20261014a';
 
 export const SOL_GPOS = new THREE.Vector3(0, 55, 26000);     // Sun in the Milky Way frame (ly)
 export const U_SECTOR = 1e7;      // 10 Mly sectors (selectable galaxies)

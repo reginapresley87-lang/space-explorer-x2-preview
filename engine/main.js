@@ -1,23 +1,27 @@
 // Space Explorer X 2 – engine. Seamless multi-scale renderer + navigation; exposes window.SE2 (see README.md).
-import * as THREE from '../scene/vendor/three.module.min.js';
-import { createJoystick } from '../scene/joystick.js';
-import { createSurface } from '../scene/surface.js';
-import { hash, rng, clamp, TAU, D2R, fmtDist, starName } from './util.js';
-import { REAL_GALAXIES, galaxyById, galaxyTypeLabel, densityAt, SOL_GPOS, LOCAL_VOID } from './universe.js';
-import { StarField, REAL_STARS, starById, starName_, sectorStars, LEVELS, CLASS_INFO } from './stars.js';
-import { systemFor, LY_PER_SU as K, bodyPosition, TYPE_LABEL, REARTH_KM, RSUN_KM, setRealScale, isRealScale, AU_SU } from './sysgen.js';
-import { createSystemView, texQueue, atmoParams } from './sysview.js';
-import { UniverseView, createGalaxyCloud, createSkyBox, createGalaxySky } from './views.js';
-import { createPost } from './post.js';
-import { NebulaField, REAL_NEBULAE, nebulaById, nebulaeNear } from './nebulae.js';
+import * as THREE from '../scene/vendor/three.module.min.js?v=20261014a';
+import { createJoystick } from '../scene/joystick.js?v=20261014a';
+import { createSurface } from '../scene/surface.js?v=20261014a';
+import { hash, rng, clamp, TAU, D2R, fmtDist, starName, smooth } from './util.js?v=20261014a';
+import { REAL_GALAXIES, galaxyById, galaxyTypeLabel, densityAt, SOL_GPOS, LOCAL_VOID } from './universe.js?v=20261014a';
+import { StarField, REAL_STARS, starById, starName_, sectorStars, LEVELS, CLASS_INFO } from './stars.js?v=20261014a';
+import { systemFor, LY_PER_SU as K, bodyPosition, TYPE_LABEL, REARTH_KM, RSUN_KM, setRealScale, isRealScale, AU_SU } from './sysgen.js?v=20261014a';
+import { createSystemView, texQueue, uploadQueue, atmoParams, SPIN, QDEF } from './sysview.js?v=20261014a';
+import { createTerrain, TERRAIN_LAYER } from './terrain.js?v=20261014a';
+import { createGasInterior, GAS_LAYERS, GAS_FADE } from './gasdeck.js?v=20261014a';
+import { UniverseView, createGalaxyCloud, createSkyBox, createGalaxySky } from './views.js?v=20261014a';
+import { createPost } from './post.js?v=20261014a';
+import { NebulaField, REAL_NEBULAE, nebulaById, nebulaeNear } from './nebulae.js?v=20261014a';
 
 const LAND_MS = 2500, MAX_ORBIT = 3e9, J2000 = Date.UTC(2000, 0, 1, 12);
-const QUALITY = { low: { cloud: 22000, stars: 0.5, maxPR: 1.25, sky: 128, flare: 0 }, medium: { cloud: 40000, stars: 1, maxPR: 1.75, sky: 192, flare: 0 }, high: { cloud: 70000, stars: 1, maxPR: 2, sky: 320, flare: 1 } };
+const GAS_SCALE = { low: 0.33, medium: 0.45, high: 0.6, ultra: 0.8 };
+const QUALITY = { low: { cloud: 22000, stars: 0.5, maxPR: 1.25, sky: 128, flare: 0 }, medium: { cloud: 40000, stars: 1, maxPR: 1.75, sky: 192, flare: 0 }, high: { cloud: 70000, stars: 1, maxPR: 2, sky: 320, flare: 1 },
+  ultra: { cloud: 110000, stars: 1.6, maxPR: 4, sky: 512, flare: 1.2 } };   // ultra: desktop / strong GPUs only, never auto-selected (pixel ratio still capped by devicePixelRatio)
 // realistic lens: ~70 deg diagonal field of view (like a phone's main camera), whatever the screen shape
 const fovFor = aspect => 2 * Math.atan(Math.tan(35 * Math.PI / 180) / Math.sqrt(1 + aspect * aspect)) * 180 / Math.PI;
 const easeInOut = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 const easeOut = t => 1 - Math.pow(1 - t, 3), easeIn = t => t * t * t;
-const V = () => new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0), ZERO = new THREE.Vector3();
+const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z), Y = new THREE.Vector3(0, 1, 0), ZERO = new THREE.Vector3();
 const sph = (d, phi, th, out) => out.set(d * Math.sin(phi) * Math.sin(th), d * Math.cos(phi), d * Math.sin(phi) * Math.cos(th));
 const ev = (name, detail) => dispatchEvent(new CustomEvent(name, { detail }));
 
@@ -131,6 +135,9 @@ export async function init(opts = {}) {
   let simDays = (Date.now() - J2000) / 86400000;
   const orb = { theta: 0.5, phi: 1.25, dist: 1 }, cur = { theta: 0.5, phi: 1.25, ld: 0 };
   const fly = { input: V(), vel: V(), speed: 0 };
+  // ---------- seamless planet flight state ----------
+  const SEAMLESS = () => window.X2_SEAMLESS !== false;
+  let terr = null, attach = null, orbSpin = null, tiCache = null, fd = null;   // fd: fly-down autopilot
 
   // ---------- entities ----------
   const entCache = new Map();
@@ -170,14 +177,55 @@ export async function init(opts = {}) {
   let gsky = createGalaxySky(renderer, Q.sky, post.hdr, qName), skyT = 0;
   const skyBox = createSkyBox(gsky.texture()); skyBox.visible = false; galScene.add(skyBox);
   const faded = new Set();
-  const nebField = new NebulaField(qName); starScene.add(nebField.group);
+  // galaxy cloud particles are built in a worker as soon as a galaxy is within ~4.5 R (the cloud only fades in inside 3 R)
+  const cloudPre = new Map(); let gWorker = null;
+  try { gWorker = new Worker(new URL('./galaxy_worker.js?v=20261014a', import.meta.url), { type: 'module' });
+    gWorker.onmessage = e => { const j = cloudPre.get(e.data.id); if (j) { if (e.data.d) { j.d = e.data.d; j.state = 'ready'; } else { j.state = 'failed'; } } };
+    gWorker.onerror = () => { gWorker = null; for (const j of cloudPre.values()) if (j.state === 'busy') j.state = 'failed'; }; } catch (e) { gWorker = null; }
+  const cloudN = gg => Math.round(Q.cloud * (gg.R < 10000 ? 0.4 : 1));
+  function prefetchCloud(gg) {
+    if (!gWorker || clouds.has(gg.id) || cloudPre.has(gg.id)) return;
+    const plain = {}; for (const k of ['R', 'armCol', 'armPhase', 'arms', 'ax', 'bar', 'clumps', 'coreCol', 'hr', 'hz', 'pitch', 'rb', 'seed', 'type']) if (gg[k] !== undefined) plain[k] = gg[k];
+    try { gWorker.postMessage({ id: gg.id, g: JSON.parse(JSON.stringify(plain)), N: cloudN(gg) }); cloudPre.set(gg.id, { state: 'busy', N: cloudN(gg) }); } catch (e) {}
+    if (cloudPre.size > 6) for (const [k, j] of cloudPre) if (j.state !== 'busy') { cloudPre.delete(k); break; }
+  }
+  const nebField = new NebulaField(qName);   // drawn by nebField.render() (own low-res pass)
+  nebField.warm(renderer, camera);
   const views = new Map();       // system id -> view
   let activeView = null;
-  function rebuildViews() { for (const [k, v] of views) { v.dispose(); views.delete(k); } activeView = null; }
+  function rebuildViews() { if (terr) { terr.dispose(); terr = null; attach = null; } for (const [k, v] of views) { v.dispose(); views.delete(k); } activeView = null; }
+  // ---------- shader program keeper ----------
+  // three.js frees a GL program as soon as the last material using it is disposed; system views / galaxy clouds are disposed and
+  // re-created as you fly between systems, nebulae and galaxies, and every re-creation re-linked the same shaders (the 0.4-0.8 s
+  // hitches entering/leaving nebulae and galaxies). One never-disposed clone per distinct shader keeps each program alive.
+  const keepMats = new Map(), keepScene = new THREE.Scene(), keepSeen = new WeakMap();
+  function keepPrograms(root, compile = true) {
+    let added = 0;
+    root.traverse(o => { const m = o.material; if (!m || Array.isArray(m) || !(o.isMesh || o.isPoints || o.isLine || o.isSprite)) return;
+      const sk = (m.vertexShader || '').length + ':' + (m.fragmentShader || '').length; if (keepSeen.get(m) === sk) return; keepSeen.set(m, sk);
+      const key = m.type + '|' + (m.vertexShader || '') + '|' + (m.fragmentShader || '') + '|' + JSON.stringify(m.defines || {}) + '|' + o.type + '|' + !!m.vertexColors + '|' + !!m.map;
+      if (keepMats.has(key)) return;
+      const mc = m.clone(), c = o.isSprite ? new THREE.Sprite(mc) : new o.constructor(o.geometry, mc); c.frustumCulled = false; c.visible = true; keepMats.set(key, c); keepScene.add(c); added++; });
+    if (added && compile) { const rt = renderer.getRenderTarget(); try { post.begin(); renderer.compile(keepScene, camera); } catch (e) {} renderer.setRenderTarget(rt); }   // compiled for the HDR target (same program key as the real draw)
+    if (added && compile) finishLinks();
+    for (const c of [...keepScene.children]) keepScene.remove(c);   // the materials stay referenced in keepMats (never disposed)
+    return added;
+  }
+  // three.js finishes linking (status / info-log / uniform lookup) lazily on a program's first draw, which on some GPUs is where the
+  // real cost is; do it now for every kept program so the first real draw is free
+  function finishLinks() { for (const c of keepScene.children) { try { const pr = renderer.properties.get(c.material).currentProgram; if (pr && !pr.__fin) { pr.__fin = 1; pr.getUniforms(); pr.getAttributes(); } } catch (e) {} } }
+  async function keepProgramsAsync(root) {   // startup prewarm: parallel compile where KHR_parallel_shader_compile exists
+    root.traverse(o => { if (o.material && !Array.isArray(o.material)) o.visible = true; });
+    const n = keepPrograms(root, false); if (!n) return 0;
+    for (const c of keepMats.values()) keepScene.add(c);
+    const rt = renderer.getRenderTarget(); try { post.begin(); const pr = renderer.compileAsync ? renderer.compileAsync(keepScene, camera) : renderer.compile(keepScene, camera); renderer.setRenderTarget(rt); await pr; finishLinks(); } catch (e) {} renderer.setRenderTarget(rt);
+    for (const c of [...keepScene.children]) keepScene.remove(c);
+    return n;
+  }
   function viewFor(s) {
     let v = views.get(s.id);
-    if (!v) { v = createSystemView(s, { quality: qName }); views.set(s.id, v); sysScene.add(v.group); v.setPR(pixelRatio);
-      if (views.size > 3) { for (const [k, ov] of views) if (ov !== v && ov !== activeView) { ov.dispose(); views.delete(k); break; } } }
+    if (!v) { v = createSystemView(s, { quality: qName }); views.set(s.id, v); sysScene.add(v.group); v.setPR(pixelRatio); keepPrograms(v.group);
+      if (views.size > 3) { for (const [k, ov] of views) if (ov !== v && ov !== activeView) { if (terr && terr.view === ov) { terr.dispose(); terr = null; attach = null; } ov.dispose(); views.delete(k); break; } } }
     return v;
   }
 
@@ -217,7 +265,7 @@ export async function init(opts = {}) {
       Object.assign(spec, { ground: [P[0], P[1]], rock: P[2], ridges: b.type === 'ice' ? 0.25 : b.type === 'desert' ? 0.4 : 0.6, rough: b.type === 'desert' ? 0.7 : 1,
         rocks: b.type === 'desert' ? 0.5 : 1, craters: airless && b.type !== 'lava' ? 1 : 0, dunes: b.type === 'desert' ? 1 : 0 });
       if (b.type === 'ocean') Object.assign(spec, { ground: [0x9a8a64, 0x5a5038], veg: P[0], rock: 0x5e5850, water: { color: P[2], level: -40 }, snowLine: 1500 + (b.tempK - 288) * 60 });
-      if (b.type === 'lava') Object.assign(spec, { ground: [0x3a2a24, 0x120c0a], rock: 0x1a1210, lava: { color: P[2], level: -70 } });
+      if (b.type === 'lava') Object.assign(spec, { ground: [0x5a3a2c, 0x24160f], rock: 0x2a1a14, lava: { color: P[2], level: -70 } });   // brighter crust (lava light: surface.js uGlow)
       if (b.type === 'ice') spec.snowLine = -1e9;
     }
     // what hangs in the sky: parent planet for moons, largest moon for planets
@@ -240,8 +288,18 @@ export async function init(opts = {}) {
   const camUni = V(), camGal = V();
   let camSys = V();
   function nearestDistLy() {
-    const l = cam.loc;
-    if (l.sys && activeView) { let d = Infinity; for (const it of activeView.items) d = Math.min(d, camSys.distanceTo(it.world) - it.r); return Math.max(d, 1e-3) * K; }
+    const l = cam.loc; nearestDistLy.r = 0;
+    if (l.sys && activeView) {
+      let d = Infinity;
+      for (const it of activeView.items) {
+        let di;
+        if (terr && it === terr.it) { const ti = terrInfo(); di = ti ? Math.max(ti.alt, 0.5) / ti.mPerSu : camSys.distanceTo(it.world) - it.r; }
+        else if (it.star || !it.b.radiusKm) di = camSys.distanceTo(it.world) - it.r;
+        else di = l.p.distanceTo(bodyPosition(l.sys, it.b, simDays, V())) - it.r * (isGiant(it.b) ? gasDeck(it.b) : 1);   // camera and body both at this frame   // this frame's position: it.world lags a frame (planets move far per frame)
+        if (di < d) { d = di; nearestDistLy.r = it.r * K; }
+      }
+      return Math.max(d, 1e-11) * K;
+    }
     const g = galOf(l);
     if (g) {
       let d = Infinity;
@@ -266,6 +324,32 @@ export async function init(opts = {}) {
       return (au < 0.1 ? au.toFixed(3) : au.toFixed(au < 10 ? 2 : 0)) + ' AU';
     }
     return fmtDist(dLy);
+  }
+
+  // ---------- body frames / terrain helpers (seamless flight) ----------
+  // system-frame rotation of a body's surface frame (= sysview tilt group * spinning mesh)
+  function bodySpin(s, b, days) {
+    if (b.locked && b.kind === 'moon') { const pw = bodyPosition(s, s.bodyMap[b.parent], days, V()), w = bodyPosition(s, b, days, V()); pw.sub(w); return Math.atan2(pw.x, pw.z) - Math.PI / 2; }
+    return b.dayHours ? (days * 24 / b.dayHours) * Math.PI * 2 * SPIN % (Math.PI * 2) : 0;
+  }
+  function bodyRot(s, b, days) { return new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), (b.tilt || 0) * D2R).multiply(new THREE.Quaternion().setFromAxisAngle(Y, bodySpin(s, b, days))); }
+  const isGiant = b => !!(b && (b.type === 'gas' || b.type === 'icegiant') && b.radiusKm);
+  const gasDeck = b => isGiant(b) ? 1 + (GAS_LAYERS.floor + 300) / (b.radiusKm * 1000) : 1;   // flight floor: 300 m above the deep cloud deck (no solid ground)
+  // altitude above the terrain under the camera (metres); cached per frame and camera position
+  function terrInfo() {
+    if (!terr || !cam.loc.sys || cam.loc.sys !== terr.sys) return null;
+    const p = cam.loc.p;
+    if (tiCache && tiCache.f === frameNo && tiCache.x === p.x && tiCache.y === p.y && tiCache.z === p.z) return tiCache.v;
+    const s = terr.sys, b = terr.it.b, bw = bodyPosition(s, b, simDays, V()), qB = bodyRot(s, b, simDays);
+    const v = V().copy(p).sub(bw), Dsu = v.length() || 1e-12, loc = v.clone().applyQuaternion(qB.clone().invert()).divideScalar(Dsu);
+    const surfR = terr.surfaceR(loc.x, loc.y, loc.z), D = Dsu * terr.mPerSu;
+    const out = { alt: D - surfR, D, surfR, bw, qB, dirSys: v.divideScalar(Dsu), mPerSu: terr.mPerSu, R: terr.R };
+    tiCache = { f: frameNo, x: p.x, y: p.y, z: p.z, v: out }; return out;
+  }
+  const clearance = () => 1.7 + (terr ? Math.min((terr.lastSp || terr.spacing) * 0.1, 25) : 0);   // eye height + margin for the drawn tile's coarseness under us
+  function pushOutOfGround(ti) {   // returns true if the camera had to be lifted
+    if (!ti) return false; const c = clearance(); if (ti.alt >= c) return false;
+    cam.loc.p.copy(ti.bw).addScaledVector(ti.dirSys, (ti.surfR + c) / ti.mPerSu); tiCache = null; return true;
   }
 
   // ---------- flights ----------
@@ -305,7 +389,7 @@ export async function init(opts = {}) {
     const ql = lookQ(look.normalize(), up);
     cam.q.copy(f.q0).slerp(ql, easeInOut(Math.min(1, t / 0.3)));
     if (t >= 1) {
-      focus = f.e; orb.theta = cur.theta = f.theta1; orb.phi = cur.phi = f.phi1; orb.dist = f.dist1; cur.ld = Math.log(f.dist1);
+      focus = f.e; orb.theta = cur.theta = f.theta1; orb.phi = cur.phi = f.phi1; orb.dist = f.dist1; cur.ld = Math.log(f.dist1); orbSpin = null;
       flight = null; setMode('orbit'); fly.speed = 0;
       discover(focus); ev('se2:arrived', { id: focus.id, name: focus.name });
     }
@@ -315,30 +399,175 @@ export async function init(opts = {}) {
   const fwd = V(), right = V(), upv = V();
   function updateCamera(dt) {
     if (mode === 'flight') return updateFlight(dt);
+    if (mode === 'orbit' && fd && focus === fd.e) { attach = null; setMode('free'); }
     if (mode === 'orbit') {
       const k = 1 - Math.exp(-dt * 8);
       cur.theta += (orb.theta - cur.theta) * k; cur.phi += (orb.phi - cur.phi) * k; cur.ld += (Math.log(orb.dist) - cur.ld) * k;
-      const off = sph(Math.exp(cur.ld), cur.phi, cur.theta, V()).applyQuaternion(focus.frameQ);
+      const off = sph(Math.exp(cur.ld), cur.phi, cur.theta, V()).applyQuaternion(focus.frameQ), up = Y.clone().applyQuaternion(focus.frameQ);
+      // landable bodies: the orbit turns with the planet's spin, so the ground below never drifts sideways
+      if (focus.b && focus.b.landable && focus.sys && SEAMLESS()) {
+        const a = bodySpin(focus.sys, focus.b, simDays);
+        if (!orbSpin || orbSpin.e !== focus) orbSpin = { e: focus, a0: a };
+        const axis = Y.clone().applyAxisAngle(new THREE.Vector3(0, 0, 1), (focus.b.tilt || 0) * D2R).applyQuaternion(focus.sys.uq);
+        off.applyAxisAngle(axis, a - orbSpin.a0); up.applyAxisAngle(axis, a - orbSpin.a0);
+      }
       cam.loc = addDelta(focusLoc(), off);
-      lookQ(off.negate().normalize(), Y.clone().applyQuaternion(focus.frameQ), cam.q);
+      lookQ(off.clone().negate().normalize(), up, cam.q);
+      if (terr && focus.b === terr.it.b && pushOutOfGround(terrInfo())) {   // zoomed into a mountain: sit on top of it
+        const dl = delta(focusLoc(), cam.loc).length(); orb.dist = Math.max(orb.dist, dl); cur.ld = Math.log(dl);
+      }
       return;
     }
     if (mode === 'free') {
-      const near = nearestDistLy();
-      const speed = clamp(near * 0.9, 1e-13, 5e8) * boost;
+      // co-move with the planet we are close to (orbit + spin): a hovering camera stays over the same spot
+      if (attach) {
+        if (cam.loc.sys !== attach.s) attach = null;
+        else {   // express the camera (incl. any look/zoom input since last frame) in last frame's body frame, then re-place it in this frame's
+          const s = attach.s, qBi = attach.qB.clone().invert(), local = V().copy(cam.loc.p).sub(attach.bw).applyQuaternion(qBi), qL = qBi.multiply(s.uqi).multiply(cam.q);
+          const bw = bodyPosition(s, attach.b, simDays, V()), qB = attach.spin ? bodyRot(s, attach.b, simDays) : new THREE.Quaternion();
+          cam.loc.p.copy(local).applyQuaternion(qB).add(bw); cam.q.copy(s.uq).multiply(qB).multiply(qL).normalize(); tiCache = null; }
+      }
+      if (fd) flyDownStep(dt);
+      let near = nearestDistLy();
+      const ti0 = terrInfo(); if (ti0 && ti0.alt < 2e4) near = Math.max(near, 5 / ti0.mPerSu * K);   // never slower than ~5 m/s (x boost) near the ground
+      const gMPerSu = gasState && gasState.h < GAS_FADE[0] ? gasState.it.b.radiusKm * 1000 / gasState.it.r : 0; if (gMPerSu) near = Math.max(near, 5 / gMPerSu * K);
+      // speed follows the distance to the nearest thing, times the boost; capped per scale so a big boost can't fling you out of the universe
+      const speed = Math.min(clamp(near * 0.9, 1e-13, 5e8) * boost, cam.loc.sys ? Infinity : cam.loc.gal ? 3000 : 3e6);
+      fly.dbg = { near, speed, input: fly.input.toArray(), dt };
       fly.vel.lerp(V().copy(fly.input).multiplyScalar(speed), 1 - Math.exp(-dt * 5));
+      // ENGINE BRAKE (Space Engine style), independent of the boost: inside a system the speed is limited by the distance to the nearest
+      // body's surface: ~2 x altitude per second within 50 radii, opening up quadratically beyond (full boost again far from bodies).
+      // On top of that one frame may never move more than 40% of that distance, so no frame can jump past or into a body.
+      if (cam.loc.sys && nearestDistLy.r > 0) {
+        const R = nearestDistLy.r, lim = near * 2 * Math.max(1, (near / (50 * R)) ** 2), stepMax = 0.4 * near / Math.max(dt, 1e-4);
+        const vmax = Math.min(lim, stepMax), vl = fly.vel.length();
+        fly.braking = vl > vmax * 1.001 && fly.input.lengthSq() > 0; if (vl > vmax) fly.vel.multiplyScalar(vmax / vl);
+        fly.dbg.lim = vmax;
+      } else fly.braking = false;
       fwd.set(0, 0, -1).applyQuaternion(cam.q); right.set(1, 0, 0).applyQuaternion(cam.q); upv.set(0, 1, 0).applyQuaternion(cam.q);
       const d = V().addScaledVector(right, fly.vel.x * dt).addScaledVector(upv, fly.vel.y * dt).addScaledVector(fwd, fly.vel.z * dt);
+      // skim assist: near the ground, flying level (pitch within ~15 deg) holds altitude instead of slowly climbing / sinking
+      const upH = ti0 && ti0.alt < 5000 ? ti0.dirSys.clone() : gasState && gasState.h < GAS_LAYERS.ammonia ? V().copy(camSys).sub(gasState.it.world).normalize() : null;
+      if (upH && cam.loc.sys) { const U = upH.applyQuaternion(cam.loc.sys.uq), fz = fwd.dot(U);
+        if (Math.abs(fz) < 0.3) d.addScaledVector(U, -fz * fly.vel.z * dt * smooth(0.3, 0.2, Math.abs(fz))); }   // full hold within ~11 deg of level, fades out by ~17 deg
       cam.loc = addDelta(cam.loc, d);
       fly.speed = fly.vel.length();
-      if (cam.loc.sys && activeView) for (const it of activeView.items) {   // keep out of bodies
-        const v = V().copy(cam.loc.p).sub(it.world), m = it.r * 1.06; if (v.length() < m) cam.loc.p.copy(it.world).addScaledVector(v.normalize(), m);
+      { const tv = terrInfo(); fly.mps = tv && tv.alt < tv.R * 4 ? fly.speed / K * tv.mPerSu : null; if (fly.mps == null && gMPerSu) fly.mps = fly.speed / K * gMPerSu; if (fly.mps != null) fly.speed = fly.mps / 9.4607e15; }   // near a terrain world: report true m/s (as ly/s) instead of compressed-scale speed
+      if (cam.loc.sys && activeView) for (const it of activeView.items) {   // keep out of bodies (terrain worlds: collision with the ground below)
+        if (terr && it === terr.it) continue;
+        const w = it.star || !it.b.radiusKm ? it.world : bodyPosition(cam.loc.sys, it.b, simDays, V());   // this frame's position (it.world is last frame's: planets move km per frame)
+        const v = V().copy(cam.loc.p).sub(w), m = it.r * (it.star ? 1.06 : isGiant(it.b) ? gasDeck(it.b) : 1.06); if (v.length() < m) cam.loc.p.copy(w).addScaledVector(v.normalize(), m);
       }
+      tiCache = null;
+      const ti = terrInfo();
+      if (ti) {
+        pushOutOfGround(ti);
+        // level the horizon as we come down: camera "up" turns toward the local vertical
+        const k = clamp(1.2 - ti.alt / ti.R * 2, 0, 1);
+        if (k > 0) {
+          const upU = ti.dirSys.clone().applyQuaternion(cam.loc.sys.uq), f = V().set(0, 0, -1).applyQuaternion(cam.q), u = V().set(0, 1, 0).applyQuaternion(cam.q);
+          const want = upU.clone().addScaledVector(f, -f.dot(upU));
+          if (want.lengthSq() > 1e-6) { want.normalize(); let ang = Math.acos(clamp(u.dot(want), -1, 1)); if (V().crossVectors(u, want).dot(f) < 0) ang = -ang;
+            cam.q.premultiply(new THREE.Quaternion().setFromAxisAngle(f, ang * k * (1 - Math.exp(-dt * 2.5)))).normalize(); }
+        }
+      }
+      updateLock();
     }
+  }
+  // ---------- moving frame lock (manual free flight and fly-down) ----------
+  // Inside a body's sphere of influence the camera co-moves with its orbit, so flying toward a planet always closes in (in the compressed
+  // layout planets cover several radii per second). Within ~5 radii it also turns with the planet's spin: the ground below stays put.
+  // sphere of influence (system units): under 0.4 x its orbit and under 0.45 x the current distance to any neighbour of the same rank
+  // (planets vs planets/star, moons vs their parent and sibling moons), so neighbouring spheres never overlap in the compressed layout
+  function soiOf(it, s, pos) {
+    const b = it.b; let lim = Math.min((b.orbitSu || 40 * it.r) * 0.4, 80 * it.r), w = pos.get(it);
+    for (const o of activeView.items) {
+      if (o === it) continue;
+      const ob = o.b, rank = o.star || ob.kind === 'planet' ? 'p' : ob.parent;
+      const mine = b.kind === 'planet' ? 'p' : b.parent;
+      if (!(rank === mine || (b.kind === 'moon' && ob.key === b.parent))) continue;
+      lim = Math.min(lim, 0.45 * w.distanceTo(pos.get(o) || o.world));
+    }
+    return Math.max(lim, 6 * it.r);
+  }
+  function updateLock() {
+    const s = cam.loc.sys; if (!s || !activeView || !SEAMLESS()) { attach = null; return; }
+    const pos = new Map(); for (const it of activeView.items) pos.set(it, it.star || !it.b.radiusKm ? it.world : bodyPosition(s, it.b, simDays, V()));
+    let best = null, bd = Infinity;
+    const pref = [fd && fd.e.b, attach && attach.b, selected && selected.b, focus && focus.b];
+    for (const it of activeView.items) {
+      if (it.star || !it.b.radiusKm) continue;
+      const w = pos.get(it), d = cam.loc.p.distanceTo(w), dR = d / it.r;
+      const keep = attach && attach.b === it.b ? 1.15 : 1;   // hysteresis for the body we're already locked to
+      if (d > soiOf(it, s, pos) * keep) continue;
+      // rank: inside several spheres (a moon inside its planet's) -> the smaller sphere wins; a preferred body (target / current lock /
+      // selected / focused) wins over a neighbour unless we're within 3 radii of that neighbour
+      const score = dR / keep * (pref.includes(it.b) ? 0.2 : 1) * (dR < 3 ? 0.05 : 1);
+      if (score < bd) { bd = score; best = { it, w, dR }; }
+    }
+    if (!best) { attach = null; return; }
+    const same = attach && attach.b === best.it.b, spin = best.dR < 5 || (same && attach.spin && best.dR < 6);
+    attach = { s, b: best.it.b, bw: best.w, qB: spin ? bodyRot(s, best.it.b, simDays) : new THREE.Quaternion(), spin, dR: best.dR };
+  }
+
+  // ---------- fly-down autopilot: from wherever we are to a few metres above the ground (or the cloud deck) of body e ----------
+  const FD_TIME = 0.05;
+  function flyDownStart(id) {
+    let e = typeof id === 'object' ? id : entity(id);
+    if (!e && typeof id === 'string') { const r = search(id).find(x => x.kind === 'planet' || x.kind === 'moon') || search(id)[0]; e = r && entity(r.id); }
+    if (!e || !e.b || !e.sys || (e.kind !== 'planet' && e.kind !== 'moon')) { console.warn('[SE2] flyDown: not a planet or moon', id); return false; }
+    exitSurfaceNow(); selected = e; discover(e);
+    fd = { e, t: 0 };
+    const near = cam.loc.sys === e.sys && activeView && delta(cam.loc, e.loc()).length() < e.radiusLy * 30;
+    if (near) { focus = e; attach = null; flight = null; setMode('free'); }
+    else startFlight(e);
+    ev('se2:flydown', { id: e.id, name: e.name });
+    return true;
+  }
+  function flyDownStep(dt) {
+    const e = fd.e, s = e.sys; if (cam.loc.sys !== s) { fd = null; return; }
+    fd.t += dt;
+    const ti = terrInfo(), onTerr = ti && terr.it.b === e.b;
+    const bw = onTerr ? ti.bw : bodyPosition(s, e.b, simDays, V());
+    // co-move with the target (fast inner planets cover many radii per second): without this the descent can never catch up
+    if (fd.bw && !(attach && attach.b === e.b)) { cam.loc.p.add(V().copy(bw).sub(fd.bw)); tiCache = null; }
+    fd.bw = bw.clone();
+    const v = V().copy(cam.loc.p).sub(bw), Dsu = v.length() || 1e-12, dir = v.clone().divideScalar(Dsu);
+    const Rm = e.b.radiusKm * 1000, mPerSu = Rm / e.b.radiusSu;
+    // while still high, swing round to the day side so we arrive in daylight
+    const star = activeView && activeView.items.find(x => x.star);
+    if (star && Dsu * mPerSu - Rm > 30e3) {
+      // aim ahead of the sun by the spin still to come during the rest of the descent, so we touch down near local noon
+      const h0 = Dsu * mPerSu - Rm, tLeft = (h0 > 2e5 ? Math.log(h0 / 2e5) / 1.1 : 0) + Math.log(Math.min(h0, 2e5) / 2000) / 0.8 + Math.log(2000 / 5) / 0.6;
+      let dS = bodySpin(s, e.b, simDays + 0.01) - bodySpin(s, e.b, simDays); if (dS > Math.PI) dS -= 2 * Math.PI; if (dS < -Math.PI) dS += 2 * Math.PI;
+      const lead = clamp(dS / 0.01 * timeSpeed * FD_TIME * tLeft, -2.6, 2.6), axis = Y.clone().applyQuaternion(bodyRot(s, e.b, simDays));
+      const sd = V().copy(star.world).sub(bw).normalize().applyAxisAngle(axis, -lead), c = dir.dot(sd); fd.dbg = { c, lead, tLeft };
+      if (c < 0.85) { const ax = V().crossVectors(dir, sd); if (ax.lengthSq() < 1e-10) ax.set(0, 1, 0).cross(dir); ax.normalize();
+        dir.applyAxisAngle(ax, Math.min(Math.acos(clamp(c, -1, 1)) - Math.acos(0.85), 0.9 * dt)).normalize(); }
+    }
+    const surfR = onTerr ? ti.surfR : Rm * gasDeck(e.b), alt = Dsu * mPerSu - surfR;
+    const target = !e.b.landable ? 1200 : onTerr && terr.ready ? clearance() + 2.5 : 2000;     // metres above the ground (just over the collision clearance) / cloud deck
+    // altitude decays exponentially (fast high up, gentle near the ground: the terrain detail has time to stream in)
+    const rate = alt > 2e5 ? 1.1 : alt > 2000 ? 0.8 : 0.6;
+    const na = target + (alt - target) * Math.exp(-rate * dt) - (alt > target ? Math.min(alt - target, 0.4 * dt) : 0);
+    cam.loc.p.copy(bw).addScaledVector(dir, (surfR + na) / mPerSu); tiCache = null;
+    // attitude: look down while high, turn to the horizon near the ground (roll levelled by the free-flight code)
+    const U = dir.clone().applyQuaternion(s.uq), f = V(0, 0, -1).applyQuaternion(cam.q);
+    let t = f.clone().addScaledVector(U, -f.dot(U)); if (t.lengthSq() < 1e-6) t = V(1, 0, 0).applyQuaternion(cam.q).cross(U).negate(); t.normalize();
+    const pitch = -Math.PI / 2 + 0.06 + (Math.PI / 2 - 0.06 - 0.1) * smooth(30000, 150, na);   // ends ~6 deg below the horizon
+    const want = t.multiplyScalar(Math.cos(pitch)).addScaledVector(U, Math.sin(pitch)).normalize();
+    cam.q.slerp(lookQ(want, U), 1 - Math.exp(-dt * 2.5));
+    if (fly.input.lengthSq() > 0) { fd = null; return; }            // any stick / key input takes over at once
+    fly.vel.set(0, 0, 0);
+    // arrived: at the target height, or no longer getting lower (the ground clearance holds us up) for ~1.5 s, or a generous timeout
+    if (na < (fd.best ?? Infinity) - 0.25) { fd.best = na; fd.still = 0; } else fd.still = (fd.still || 0) + dt;
+    const settled = !e.b.landable || (onTerr && terr.ready);   // rocky: only once the real ground is under us
+    const arrived = settled && (Math.abs(na - target) < Math.max(1, target * 0.15) || (alt < 3000 && fd.still > 1.5));
+    if (arrived || fd.t > 120) { const done = e; fd = null; ev('se2:flydown-done', { id: done.id, name: done.name, landed: !!done.b.landable && arrived, deck: !done.b.landable && arrived }); }
   }
   function enterFree() {
     if (mode === 'free') return;
-    flight = null; setMode('free');
+    flight = null; attach = null; setMode('free');
   }
 
   // ---------- landing ----------
@@ -367,6 +596,7 @@ export async function init(opts = {}) {
     return true;
   }
   function orbitFromSurf(e) {
+    orbSpin = null;
     focus = e; orb.dist = e.viewLy; cur.ld = Math.log(orb.dist);
     orb.theta = cur.theta = Math.atan2(surfDir.x, surfDir.z); orb.phi = cur.phi = clamp(Math.acos(clamp(surfDir.y, -1, 1)), 0.08, Math.PI - 0.08);
   }
@@ -481,20 +711,29 @@ export async function init(opts = {}) {
   }
 
   // ---------- random procedural planet (deterministic per seed + n) ----------
-  let randomN = 0;
+  // random landable world: each press picks a new random spot across the galaxy (sometimes another known galaxy), never one of the recent picks
+  let randomN = 0; const recentRand = [];
   function randomPlanet(o = {}) {
-    const n = o.n ?? randomN++;
-    let g = getGalaxy(o.galaxy || 'mw'), base = o.from === 'here' && galOf(cam.loc) ? toGal(cam.loc, galOf(cam.loc)) : SOL_GPOS.clone();
-    if (o.from === 'here' && galOf(cam.loc)) g = galOf(cam.loc);
+    const det = o.n != null, n = det ? o.n : randomN++, salt = det ? 0 : (Math.random() * 1e9) | 0;
+    const here = galOf(cam.loc);
+    let g = getGalaxy(o.galaxy) || (o.from === 'here' && here) || here || getGalaxy('mw');
+    const r0 = rng(hash(SEED, 'randg', n, salt));
+    if (!o.galaxy && !det && r0() < 0.2) { const others = REAL_GALAXIES.filter(x => x.id !== g.id && x.R); const og = others.length && getGalaxy(others[Math.floor(r0() * others.length)].id); if (og) g = og; }
     for (let k = 0; k < 400; k++) {
-      const r = rng(hash(SEED, 'rand', n, k)), L = r() < 0.7 ? 1 : 0, S = LEVELS[L].size, span = 6;
+      const r = rng(hash(SEED, 'rand', n, k, salt)), L = r() < 0.7 ? 1 : 0, S = LEVELS[L].size;
+      let base;
+      if (o.from === 'near' && here) base = toGal(cam.loc, here);   // old behaviour on request: around the camera
+      else { const rr = (g.R || 30000) * (0.08 + 0.6 * Math.sqrt(r())), a = r() * Math.PI * 2; base = V(Math.cos(a) * rr, (r() - 0.5) * 200, Math.sin(a) * rr); }
+      const span = o.from === 'near' ? 6 : 2;
       const sx = Math.floor(base.x / S) + r.int(-span, span), sy = Math.floor(base.y / S) + r.int(-1, 1), sz = Math.floor(base.z / S) + r.int(-span, span);
       const list = sectorStars(g, SEED, L, sx, sy, sz).stars; if (!list.length) continue;
       const st = list[Math.floor(r() * list.length)]; starName_(st);
       const s = getSystem(st.id); if (!s) continue;
-      const cands = s.bodies.filter(b => b.landable && b.kind === 'planet' && (!o.type || b.type === o.type));
+      const cands = s.bodies.filter(b => b.landable && b.kind === 'planet' && (!o.type || b.type === o.type) && !recentRand.includes(b.id) && !recentRand.includes(s.id));
       if (!cands.length) continue;
-      return cands[Math.floor(r() * cands.length)].id;
+      const id = cands[Math.floor(r() * cands.length)].id;
+      if (!det) { recentRand.push(id, s.id); while (recentRand.length > 40) recentRand.shift(); }
+      return id;
     }
     return null;
   }
@@ -602,6 +841,100 @@ export async function init(opts = {}) {
   const lensScene = new THREE.Scene(); const lensQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), lensMat); lensQuad.frustumCulled = false; lensScene.add(lensQuad);
   const orthoCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
+  // ---------- seamless terrain lifecycle (one terrain world at a time: the nearest landable body within 8 radii) ----------
+  const hazeCol = V(), SKY_LAYER = 2;
+  function updateTerrain() {
+    const s = cam.loc.sys;
+    if (!activeView || !s) { if (terr) { terr.dispose(); terr = null; attach = null; } return; }
+    let best = null, bd = 8;
+    for (const it of activeView.items) { if (it.star || !it.b.landable) continue; const d = camSys.distanceTo(it.world) / it.r; if (d < bd) { bd = d; best = it; } }
+    if (terr && (terr.view !== activeView || !activeView.items.includes(terr.it) || camSys.distanceTo(terr.it.world) / terr.it.r > 10 || (best && best !== terr.it && camSys.distanceTo(terr.it.world) / terr.it.r > bd * 1.5))) { terr.dispose(); terr = null; attach = null; tiCache = null; }
+    if (!terr && best) { terr = createTerrain(best, { quality: qName, octMax: (QDEF[qName] || QDEF.medium).OCT_MAX }); if (terr) { terr.view = activeView; terr.sys = s; } }
+    if (!terr) return;
+    const it = terr.it;
+    terr.group.rotation.y = it.mesh.rotation.y;
+    const qB = it.tilt.quaternion.clone().multiply(it.mesh.quaternion).invert();
+    const v = V().copy(camSys).sub(it.world).applyQuaternion(qB).multiplyScalar(terr.mPerSu);
+    terr.update(v.x, v.y, v.z);
+    const dR = camSys.distanceTo(it.world) / it.r, show = terr.ready && dR < 6;
+    it.mesh.visible = !show; terr.group.visible = show;
+    const map = it.mesh.material.uniforms && it.mesh.material.uniforms.uMap && it.mesh.material.uniforms.uMap.value;
+    if (show && map && map.wrapS !== THREE.RepeatWrapping) { map.wrapS = THREE.RepeatWrapping; map.needsUpdate = true; }
+    // atmosphere: from inside it is drawn first (it becomes the sky) and the terrain shader adds the aerial perspective
+    let hk = 0;
+    if (it.atmo) {
+      const A = it.A, top = 1 + A.top, inside = show && dR < top * 1.01, m = it.atmo.material;
+      it.atmo.layers.set(inside ? SKY_LAYER : 0); terr.skyInside = inside;
+      if (m.uniforms.uIn) m.uniforms.uIn.value = inside ? smooth(top, 1 + A.top * 0.6, dR) : 0;
+      const side = inside ? THREE.BackSide : THREE.FrontSide; if (m.side !== side) { m.side = side; m.needsUpdate = true; }   // from inside the shell only its far side faces us
+      if (inside) {
+        hk = smooth(top, top - A.top * 0.6, dR);
+        const tauR = (A.tauR[0] + A.tauR[1] + A.tauR[2]) / 3, tau = tauR + A.tauM * 0.5, Rm = terr.R;
+        const star = activeView.items.find(x => x.star), up = V().copy(camSys).sub(it.world).normalize();
+        const e = star ? up.dot(V().copy(star.world).sub(it.world).normalize()) : 0.5;
+        const br = A.betaR, bm = Math.max(br[0], br[1], br[2]) || 1, mie = A.tauM / (A.tauM + tauR + 1e-6), mc = A.mc;
+        hazeCol.set(br[0] / bm * (1 - mie) + mc[0] * mie, br[1] / bm * (1 - mie) + mc[1] * mie, br[2] / bm * (1 - mie) + mc[2] * mie).multiplyScalar(0.03 + 0.55 * smooth(-0.12, 0.35, e));
+        terr.setHaze(hk, tau, Math.max(A.HR * Rm, 500), (dR * it.r) * terr.mPerSu - Rm, hazeCol, it.wpos);
+      }
+    }
+    if (!hk) terr.setHaze(0, 0, 1e4, 0, null, null);
+  }
+
+  // ---------- true-size sky near a world ----------
+  // The default (compressed) layout inflates bodies against their orbits: standing on Earth, Venus or the Moon would fill a large part of the
+  // sky. Close to the world we fly over, every other body is pushed out along its line of sight until its apparent size is its true one.
+  function trueDistKm(s, A, B) {   // rough true distance between bodies A (the world we are at) and B
+    const map = s.bodyMap || {}, par = b => b.kind === 'moon' ? map[b.parent] : null;
+    const pA = par(A) || A, AU_KM = 1.495979e8;
+    if (B.kind === 'star' || B.cls) return (pA.au || 1) * AU_KM;
+    if (par(B) === A) return B.km || A.radiusKm * 30;
+    if (par(A) === B) return A.km || B.radiusKm * 30;
+    if (par(A) && par(A) === par(B)) return Math.max(Math.abs((A.km || 0) - (B.km || 0)), (A.km || 0) * 0.5, A.radiusKm * 10);
+    const pB = par(B) || B, sun = activeView.items.find(x => x.star);
+    if (!sun) return Math.abs((pB.au || 1) - (pA.au || 1)) * AU_KM + 1;
+    const ia = activeView.items.find(x => x.b === pA), ib = activeView.items.find(x => x.b === pB);
+    if (!ia || !ib) return Math.abs((pB.au || 1) - (pA.au || 1)) * AU_KM + 1;
+    const da = V().copy(ia.world).sub(sun.world).normalize().multiplyScalar(pA.au || 1), db = V().copy(ib.world).sub(sun.world).normalize().multiplyScalar(pB.au || 1);
+    return Math.max(da.distanceTo(db), 0.01) * AU_KM;
+  }
+  function trueSky(s) {
+    const T = terr && terr.view === activeView ? terr.it : null;
+    for (const it of activeView.items) it.skyF = 1;
+    if (!T || s.realScale) return;
+    const dR = camSys.distanceTo(T.world) / T.r, w = smooth(8, 2.5, dR);
+    if (w <= 0) return;
+    for (const it of activeView.items) {
+      if (it === T) continue;
+      const rel = V().copy(it.world).sub(camSys), d = rel.length(); if (d < 1e-12) continue;
+      const Rkm = it.star ? (it.b.R || 1) * RSUN_KM : it.b.radiusKm; if (!Rkm) continue;
+      const realAng = Rkm / trueDistKm(s, T.b, it.b), dispAng = it.r / d;
+      if (!(realAng < dispAng)) continue;
+      let f = Math.pow(realAng / dispAng, w); f = Math.max(f, d / (sysFar * 0.85));   // stay inside the far plane
+      if (f >= 1) continue;
+      it.skyF = f; it.node.position.copy(rel).divideScalar(f);   // node position is system-local, camera-relative
+    }
+  }
+
+  // ---------- inside a gas giant ----------
+  const gasIn = createGasInterior(); let gasState = null; gasIn.setScale(GAS_SCALE[qName] || 0.45);
+  function updateGas() {
+    gasState = null; gasIn.U.uAlpha.value = 0;
+    const s = cam.loc.sys; if (!s || !activeView || !SEAMLESS()) return;
+    let g = null, gh = Infinity;
+    for (const it of activeView.items) { if (it.star || !isGiant(it.b)) continue; const Rm = it.b.radiusKm * 1000, h = camSys.distanceTo(it.world) / it.r * Rm - Rm; if (h < gh) { gh = h; g = it; } }
+    if (!g || gh > GAS_FADE[0]) return;
+    const b = g.b, bw = bodyPosition(s, b, simDays, V()), qB = bodyRot(s, b, simDays);
+    const v = V().copy(cam.loc.p).sub(bw), upSys = v.clone().normalize();
+    const camB = upSys.clone().applyQuaternion(qB.clone().invert());
+    const toB = new THREE.Matrix3().setFromMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(s.uq.clone().multiply(qB).invert()));
+    const star = activeView.items.find(x => x.star);
+    const sun = star ? V().copy(star.world).sub(camSys).normalize().applyQuaternion(s.uq) : V(0, 1, 0);
+    const sc = star && star.col ? V(star.col.r, star.col.g, star.col.b).lerp(V(1, 1, 1), 0.3) : V(1, 1, 1);
+    const alpha = smooth(GAS_FADE[0], GAS_FADE[1], gh);
+    gasIn.set(g, { h: gh, up: upSys.applyQuaternion(s.uq), camB, toB, sun, sunC: sc, alpha });
+    gasState = { it: g, h: gh, alpha };
+  }
+
   // ---------- render ----------
   let frameNo = 0, last = performance.now(), acc = 0, frames = 0, fps = 60, scale = '', lastStats = {};
   function resize() { camera.aspect = surf.camera.aspect = innerWidth / innerHeight; camera.fov = surf.camera.fov = fovFor(camera.aspect); camera.updateProjectionMatrix(); surf.camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight, false); post.setSize(innerWidth * pixelRatio, innerHeight * pixelRatio); }
@@ -625,11 +958,31 @@ export async function init(opts = {}) {
     return 'universe';
   }
 
+  // NaN guard: remember the last finite camera; if anything ever poisons it, step back instead of rendering NaN forever
+  let goodCam = null;
+  const badCam = () => !cam.loc || !isFinite(cam.loc.p.x + cam.loc.p.y + cam.loc.p.z) || !isFinite(cam.q.x + cam.q.y + cam.q.z + cam.q.w) || !isFinite(orb.dist + cur.ld + cur.theta + cur.phi);
+  function recoverCam(hard) {
+    if (!isFinite(orb.dist) || orb.dist <= 0) orb.dist = focus ? focus.viewLy : 1; if (!isFinite(cur.ld)) cur.ld = Math.log(orb.dist);
+    if (!isFinite(orb.theta)) orb.theta = 0.5; if (!isFinite(orb.phi)) orb.phi = 1.25; if (!isFinite(cur.theta)) cur.theta = orb.theta; if (!isFinite(cur.phi)) cur.phi = orb.phi;
+    if (!isFinite(simDays)) simDays = 0; if (!isFinite(timeSpeed)) timeSpeed = 1;
+    fly.vel.set(0, 0, 0); fly.input.set(0, 0, 0); attach = null; fd = null; flight = null;
+    if (goodCam && !hard) { cam.loc = { gal: goodCam.gal, sys: goodCam.sys, p: goodCam.p.clone() }; cam.q.copy(goodCam.q); }
+    else { cam.q.identity(); cam.loc = focus ? addDelta(focus.loc(), sph(orb.dist, orb.phi, orb.theta, V()).applyQuaternion(focus.frameQ)) : rehome({ gal: null, sys: null, p: V() }); }
+    if (badCam()) { cam.q.identity(); cam.loc = rehome({ gal: null, sys: null, p: V() }); }
+    if (mode !== 'orbit' && mode !== 'free') setMode(focus ? 'orbit' : 'free');
+  }
   function frame(now) {
     const dt = Math.min(0.1, (now - last) / 1000); last = now; frameNo++;
+    if (badCam()) { console.warn('[SE2] camera became invalid; recovered'); recoverCam(false); }
     if (texQueue.length) texQueue.shift()();
-    simDays += timeSpeed * dt;
+    if (uploadQueue.length) { try { renderer.initTexture(uploadQueue.shift()); } catch (e) {} }
+    if (frameNo % 30 === 0) { if (activeView) keepPrograms(activeView.group); if (terr && terr.group) keepPrograms(terr.group); if (active === 'surface' && surf.scene) keepPrograms(surf.scene); }   // materials added/changed after creation (textures, rings, terrain tiles)
+    // near a world (and during fly-down) the clock slows to 5%: at the default 1 day/s the day/night line would otherwise sweep past every few seconds
+    const nearK = attach && attach.spin && attach.dR != null ? smooth(1.6, 1.08, attach.dR) : 0;
+    simDays += timeSpeed * dt * (fd ? FD_TIME : 1 - (1 - FD_TIME) * nearK);   // the fly-down autopilot slows the clock so the day/night line doesn't sweep past during the descent
     if (['landing', 'takeoff', 'surface'].includes(mode)) updateLanding(dt); else updateCamera(dt);
+    if (badCam()) recoverCam(false); else goodCam = { gal: cam.loc.gal, sys: cam.loc.sys, p: cam.loc.p.clone(), q: cam.q.clone() };
+    if (!cam.loc.sys && !cam.loc.gal && cam.loc.p.length() > MAX_ORBIT) cam.loc.p.setLength(MAX_ORBIT);   // edge of the universe
 
     // derived camera coordinates
     toUni(cam.loc, camUni);
@@ -655,15 +1008,23 @@ export async function init(opts = {}) {
       // --- universe
       uni.update(camUni);
       // --- galaxy clouds: up to two nearest galaxies within 3R
+      if (frameNo % 10 === 0) for (const gg of uni.galaxies) { if (camUni.distanceTo(gg.center) < gg.R * 4.5) prefetchCloud(gg); }
       const near = uni.galaxies.map(gg => ({ gg, d: camUni.distanceTo(gg.center) })).filter(x => x.d < x.gg.R * 3.2).sort((a, b) => a.d / a.gg.R - b.d / b.gg.R).slice(0, 2);
       if (g && !near.some(n => n.gg === g)) near.unshift({ gg: g, d: camGal.length() });
-      for (const [id, c] of clouds) if (!near.some(n => n.gg.id === id)) { c.dispose(); clouds.delete(id); }
+      // galaxy clouds are cached (hidden) rather than rebuilt every time we cross 3.2 R: building one is ~70k particles of CPU work
+      for (const [id, c] of clouds) if (!near.some(n => n.gg.id === id)) c.group.visible = false; else c.used = now;
+      if (clouds.size > 4) { const old = [...clouds].filter(([id]) => !near.some(n => n.gg.id === id)).sort((a, b) => (a[1].used || 0) - (b[1].used || 0));
+        while (clouds.size > 4 && old.length) { const [id, c] = old.shift(); c.dispose(); clouds.delete(id); } }
       for (const id of faded) uni.setAlpha(id, 1); faded.clear();
       const hidden = [];
       skyBox.visible = false;
       for (const { gg, d } of near) {
         let c = clouds.get(gg.id);
-        if (!c) { c = createGalaxyCloud(gg, Math.round(Q.cloud * (gg.R < 10000 ? 0.4 : 1))); clouds.set(gg.id, c); galScene.add(c.group); }
+        if (!c) {
+          const j = cloudPre.get(gg.id), wNow = clamp((gg.R * 3.0 - d) / (gg.R * 1.2), 0, 1);
+          if (j && j.state === 'busy' && wNow < 0.05) continue;   // still invisible: wait for the worker
+          c = createGalaxyCloud(gg, cloudN(gg), j && j.state === 'ready' && j.N === cloudN(gg) ? j.d : null); cloudPre.delete(gg.id);
+          clouds.set(gg.id, c); galScene.add(c.group); keepPrograms(c.group); }
         const w = clamp((gg.R * 3.0 - d) / (gg.R * 1.2), 0, 1);
         uni.setAlpha(gg.id, 1 - w); faded.add(gg.id); if (w > 0.5) hidden.push(gg.id);
         const rel = gg === g ? V().copy(camGal).negate().applyQuaternion(gg.q) : V().copy(gg.center).sub(camUni);
@@ -680,12 +1041,15 @@ export async function init(opts = {}) {
         if (inside) { const lp = V().copy(rel).negate().applyQuaternion(gg.qi); inDisk = Math.hypot(lp.x, lp.z) < gg.R * 1.05 && Math.abs(lp.y) < gg.R * 0.12; }
         if (inDisk && spiral && !params.has('nocube')) {
           // the sky from inside: ray-marched star + dust density (refreshed after moving, one cube face per frame)
-          if (!gsky.ready || gsky.g !== gg) { gsky.request(gg, camGal); gsky.step(true); skyT = now; }
+          // first fill is spread over 6 frames too (rendering all faces at once was a 100+ ms spike); until it's done the cloud stays up
+          if ((!gsky.ready || gsky.g !== gg) && !(gsky.busy() && gsky.job() === gg)) { gsky.request(gg, camGal); skyT = now; }
           else if (!gsky.busy() && gsky.at.distanceTo(camGal) > 30 && now - skyT > 700 && fly.speed < 20000) { gsky.request(gg, camGal); skyT = now; }
           if (gsky.busy()) gsky.step();
           post.begin();
-          skyBox.material.uniforms.uMap.value = gsky.texture();
-          c.group.visible = false; skyBox.visible = true; skyBox.material.uniforms.uAlpha.value = w;
+          if (gsky.ready && gsky.g === gg) {
+            skyBox.material.uniforms.uMap.value = gsky.texture();
+            c.group.visible = false; skyBox.visible = true; skyBox.material.uniforms.uAlpha.value = w;
+          }
         }
       }
       uni.hideDots(hidden);
@@ -714,8 +1078,10 @@ export async function init(opts = {}) {
         activeView.group.quaternion.copy(s.uq); activeView.group.position.set(0, 0, 0);
         const focal = focalPx;
         activeView.update(simDays, camSys, focal, dt);
+        updateTerrain(); updateGas();
         let nd = Infinity; for (const it of activeView.items) nd = Math.min(nd, camSys.distanceTo(it.world) - it.r * (it.atmo ? 1.04 : 1));
         sysNear = clamp(nd * 0.3, s.realScale ? 1e-11 : 1e-4, 2); sysFar = Math.max(50, (s.extentSu || 100) * 4, camSys.length() * 3);
+        trueSky(s);
         const fadeK = clamp((s.enterLy * 1.25 - camSys.length() * K) / (s.enterLy * 0.6), 0, 1);
         activeView.lines.visible = showOrbits && fadeK > 0.02; activeView.lines.children.forEach(l => l.material.opacity = (l.userData.op ??= l.material.opacity) * fadeK);
         activeView.markerMat.uniforms.uNear.value = 6;
@@ -732,7 +1098,7 @@ export async function init(opts = {}) {
             const miss = oc.addScaledVector(dir, -t).length(), rr = o.r * (o.atmo ? 1.02 : 1); if (miss < rr) { vis = 0; break; } vis = Math.min(vis, clamp((miss - rr) / (rr * 0.08 + 1e-12), 0, 1)); }
           if (vis <= 0) continue;
           const p = project(rel.applyQuaternion(s.uq)); if (!p || p.x < -innerWidth * 0.3 || p.x > innerWidth * 1.3 || p.y < -innerHeight * 0.3 || p.y > innerHeight * 1.3) continue;
-          const ang = it.r / d, Lf = Math.pow(Math.max(it.b.L, 1e-4), 0.2);
+          const ang = it.r / d * (it.skyF || 1), Lf = Math.pow(Math.max(it.b.L, 1e-4), 0.2);
           const I = clamp(Lf * Math.sqrt(ang) * 3.2, 0.06, 2.6) * vis;
           lights.push({ x: p.x, y: p.y, I, size: clamp(ang * focal * 1.2 + 30 * I, 10, 160), color: new THREE.Vector3(it.col.r, it.col.g, it.col.b) });
         }
@@ -741,7 +1107,7 @@ export async function init(opts = {}) {
       const drawBG = () => {
         setCam(1e-5, 4e4); uni.place(camUni); renderer.render(uniScene, camera);
         setCam(1e-3, 2e4); renderer.render(galScene, camera);
-        if (stars.group.visible) { setCam(1e-5, 1e5); renderer.render(starScene, camera); }
+        if (stars.group.visible) { setCam(1e-5, 1e5); renderer.render(starScene, camera); nebField.render(renderer, camera); }
       };
       if (lens) {
         const w = renderer.domElement.width, h = renderer.domElement.height;
@@ -753,7 +1119,24 @@ export async function init(opts = {}) {
       if (activeView) {
         renderer.clearDepth(); setSysCamera();
         activeView.updateLights();
-        renderer.render(sysScene, camera);
+        camera.layers.enable(TERRAIN_LAYER);
+        const ti = terr && terr.group.visible ? terrInfo() : null;
+        if (ti && terr.skyInside) {   // inside the air: the atmosphere shell is the sky, drawn first on its own (no depth test)
+          // tight near/far around the shell's far side: a ~0.5 m near plane against a system-sized far plane pushes it past float depth precision (clipped away)
+          const tA = terr.it.A ? terr.it.A.top : 0.02, shellSu = terr.it.r * (1 + tA) * 1.002;
+          camera.layers.set(SKY_LAYER); setCam(Math.max(1e-12, Math.max(shellSu - ti.D / ti.mPerSu, 1e-9) * 0.3), shellSu * 2.5); renderer.render(sysScene, camera);
+          camera.layers.set(0); camera.layers.enable(TERRAIN_LAYER);
+        }
+        if (ti) {
+          // near the ground: two depth ranges (far: everything; near: terrain only) so 24-bit depth covers 0.3 m .. 1e9 m
+          const nearM = clamp(ti.alt * 0.35, 0.25, 1e7), splitM = nearM * 25000, nearSu = nearM / ti.mPerSu, splitSu = splitM / ti.mPerSu;
+          if (splitSu < sysFar) {
+            setCam(splitSu * 0.97, sysFar); renderer.render(sysScene, camera);
+            renderer.clearDepth(); setCam(nearSu, splitSu); renderer.render(sysScene, camera);
+          } else { setCam(Math.min(sysNear, nearSu), sysFar); renderer.render(sysScene, camera); }
+        } else renderer.render(sysScene, camera);
+        camera.layers.set(0);
+        if (gasState) { gasIn.render(renderer, camera); if (gasState.h < GAS_LAYERS.ammonia) lights.length = 0; }
       }
     }
     // post: lights -> uniforms, bloom, exposure, tone mapping
@@ -770,7 +1153,8 @@ export async function init(opts = {}) {
     frames++; acc += dt;
     if (acc >= 1.2) {
       fps = frames / acc; frames = 0; acc = 0;
-      if (fps < 38 && pixelRatio > 0.6) setPR(Math.max(0.6, pixelRatio - 0.2));
+      const minPR = qName === 'ultra' ? Math.min(1, maxPR) : 0.6;
+      if (fps < 38 && pixelRatio > minPR) setPR(Math.max(minPR, pixelRatio - 0.2));
       else if (fps > 57 && pixelRatio < maxPR) setPR(Math.min(maxPR, pixelRatio + 0.1));
     }
     lastStats = { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, points: renderer.info.render.points }; renderer.info.reset();
@@ -787,6 +1171,18 @@ export async function init(opts = {}) {
   selected = focus;
   updateCamera(0);
   requestAnimationFrame(frame);
+  // startup shader prewarm (renderer.compileAsync): one real + one procedural system view and the galaxy cloud shaders, so the first
+  // nebula / galaxy / system transition doesn't link programs mid-flight. Temporary objects are disposed; their programs stay kept.
+  setTimeout(async () => {
+    try {
+      const tmp = [];
+      const sp = [...stars.all()].find(st => !st.real && st.id); const ps = sp && getSystem(sp.id);
+      for (const sy of [getSystem('sol'), ps]) if (sy && !views.has(sy.id)) { const v = createSystemView(sy, { quality: qName }); tmp.push(v); await keepProgramsAsync(v.group); }
+      for (const gg of [uni.galaxies.find(x => x.type === 'spiral' || x.type === 'barred'), uni.galaxies.find(x => x.type === 'elliptical'), uni.galaxies.find(x => !x.real)]) if (gg) { const c = createGalaxyCloud(gg, 600); tmp.push(c); await keepProgramsAsync(c.group); }
+      for (const t of tmp) t.dispose();
+      window.__se2Prewarm = keepMats.size;
+    } catch (e) { console.warn('[SE2] prewarm', e); }
+  }, 2500);
 
   // ---------- public API ----------
   let joystick = null;
@@ -794,21 +1190,25 @@ export async function init(opts = {}) {
     const e = typeof id === 'object' ? id : entity(id) || entity((search(id)[0] || {}).id);
     if (!e) { console.warn('[SE2] unknown target', id); return false; }
     selected = e; ev('se2:selected', { id: e.id, name: e.name, info: info(e) });
-    startFlight(e, o); return true;
+    fd = null; startFlight(e, o); return true;
   }
   const SE2 = {
     version: '2.0.0-preview', seed: SEED,
     goTo, select(id) { const e = entity(id); if (!e) return false; selected = e; discover(e); ev('se2:selected', { id: e.id, name: e.name, info: info(e) }); return true; },
-    home() { return goTo('sol#earth'); },
+    home() { if (badCam()) recoverCam(true); return goTo('sol#earth'); },
     getInfo: info, search, randomPlanet,
     getSelected: () => selected ? selected.id : null, getFocus: () => focus ? focus.id : null,
     zoom(delta) {
       delta = Number(delta) || 0;
       if (['landing', 'takeoff', 'surface', 'flight'].includes(mode)) return;
       if (mode === 'free') { const n = nearestDistLy(); cam.loc = addDelta(cam.loc, V(0, 0, -1).applyQuaternion(cam.q).multiplyScalar(n * clamp(delta, -1, 0.9))); return; }
+      if (focus.b && focus.b.landable && SEAMLESS()) {   // seamless: zoom by altitude, all the way down to the ground
+        const r = focus.radiusLy, lyPerM = r / (focus.b.radiusKm * 1000);
+        orb.dist = r + clamp((orb.dist - r) * Math.exp(-delta), 3 * lyPerM, MAX_ORBIT); return;
+      }
       orb.dist = clamp(orb.dist * Math.exp(-delta), focus.minLy, MAX_ORBIT);
     },
-    setZoom(ly, instant) { if (mode !== 'orbit') return false; orb.dist = clamp(ly, focus.minLy, MAX_ORBIT); if (instant) cur.ld = Math.log(orb.dist); return orb.dist; },
+    setZoom(ly, instant) { ly = Number(ly); if (mode !== 'orbit' || !focus || !isFinite(ly) || ly <= 0) return false; orb.dist = clamp(ly, focus.b && focus.b.landable && SEAMLESS() ? focus.radiusLy * (1 + 3 / (focus.b.radiusKm * 1000)) : focus.minLy, MAX_ORBIT); if (instant) cur.ld = Math.log(orb.dist); return orb.dist; },
     getZoom: () => mode === 'orbit' ? Math.exp(cur.ld) : null,
     look(dx, dy) {
       dx = Number(dx) || 0; dy = Number(dy) || 0;
@@ -817,24 +1217,54 @@ export async function init(opts = {}) {
       if (mode !== 'orbit') return;
       orb.theta -= dx * 0.006; orb.phi = clamp(orb.phi - dy * 0.006, 0.05, Math.PI - 0.05);
     },
+    // 🔄 Orbit button in free flight: circle the locked body around its pole (orbit mode keeps using look()); dtMs = frame time
+    orbitAround(dtMs = 16) {
+      if (mode === 'orbit') { this.look(-(+dtMs || 0) * 0.06, 0); return true; }
+      if (mode !== 'free' || !attach || fd || !cam.loc.sys) return false;
+      const s = cam.loc.sys, qB = bodyRot(s, attach.b, simDays), axis = Y.clone().applyQuaternion(qB).normalize();
+      const R = new THREE.Quaternion().setFromAxisAngle(axis, (+dtMs || 0) * 0.06 * 0.006 * 0.5);
+      const bw = bodyPosition(s, attach.b, simDays, V());
+      cam.loc.p.sub(bw).applyQuaternion(R).add(bw);
+      cam.q.premultiply(s.uq.clone().multiply(R).multiply(s.uqi)).normalize(); tiCache = null;
+      return true;
+    },
     fly(x = 0, y = 0, z = 0) {
       const v = [clamp(+x || 0, -1, 1), clamp(+y || 0, -1, 1), clamp(+z || 0, -1, 1)];
       if (mode === 'surface') { surfInput.set(...v); return; }
       if (mode === 'landing' || mode === 'takeoff') return;
-      fly.input.set(...v); if (fly.input.lengthSq() > 0) enterFree();
+      fly.input.set(...v); if (fly.input.lengthSq() > 0) { fd = null; enterFree(); }
     },
-    setBoost(k) { boost = clamp(+k || 1, 1, 1e6); return boost; }, getBoost: () => boost,
+    flyDown: id => flyDownStart(id ?? (selected && selected.id) ?? (focus && focus.id)), cancelFlyDown() { fd = null; }, isFlyingDown: () => !!fd,
+    setBoost(k) { k = Number(k); boost = clamp(isFinite(k) && k > 0 ? k : 1, 1, 1e5);
+      const el = typeof document !== 'undefined' && document.getElementById('x2-boost');   // keep the ⚡ button label in step with API changes
+      if (el) { el.textContent = '⚡' + (boost >= 1000 ? +(boost / 1000).toPrecision(3) + 'k' : +boost.toPrecision(3)) + '×'; el.classList.toggle('on', boost > 1); }
+      ev('se2:boost', { boost }); return boost; }, getBoost: () => boost, engineBrake: true, isBraking: () => mode === 'free' && !!fly.braking,
     land, takeOff, canLand,
     // nearest body + metres above its surface (scale-consistent with the drawn radius, works in compressed and real scale)
     getAltitude() {
       if (active === 'surface' && (surfEnt || landing?.e)) { const e = surfEnt || landing.e, c = surf.camera.position;
-        return { name: e.name, id: e.id, meters: Math.max(0, c.y - surf.height(c.x, c.z)), surface: true }; }
+        return { name: e.name, id: e.id, meters: Math.max(0, surf.state.hover ?? (c.y - surf.height(c.x, c.z))), surface: true, atmosphere: !!e.b.atmo, kind: 'rocky' }; }
       if (!cam.loc.sys || !activeView) return null;
+      const s = cam.loc.sys, eid = b => s.id + '#' + b.key;
+      const hasAir = it => !!(it.atmo || (it.b && it.b.atmo)), kindOf = it => it.star ? 'star' : isGiant(it.b) ? 'gas' : 'rocky';
+      const ti = terrInfo();
+      if (ti && terr) { let other = false; if (!(fd && fd.e.b === terr.it.b)) for (const it of activeView.items) if (it !== terr.it && camSys.distanceTo(it.world) - it.r < ti.alt / ti.mPerSu && camSys.distanceTo(it.world) < it.r * 3) other = true;
+        if (!other) { const it = terr.it, top = it.A ? (it.A.top || 0) * terr.R : 0;
+          return { name: it.b.name, id: eid(it.b), meters: Math.max(0, ti.alt), surface: false, terrain: true, atmosphere: hasAir(it) && ti.D - terr.R < top, kind: 'rocky' }; } }
       let best = null, bd = Infinity;
-      for (const it of activeView.items) { const d = camSys.distanceTo(it.world) - it.r; if (d < bd) { bd = d; best = it; } }
+      for (const it of activeView.items) { const d = camSys.distanceTo(it.world) - it.r * (it.star ? 1 : gasDeck(it.b)); if (d < bd) { bd = d; best = it; } }
+      // prefer the body we are "at" over small neighbours: fly-down target, else the focused / selected body or the planet whose
+      // neighbourhood we are in, unless we are really close to the other body (within 3 of its radii)
+      const dOf = it => camSys.distanceTo(it.world) - it.r * (it.star ? 1 : gasDeck(it.b));
+      const near3 = it => it && camSys.distanceTo(it.world) < it.r * 3;
+      let pref = fd ? activeView.items.find(x => x.b === fd.e.b) : attach && attach.s === s ? activeView.items.find(x => x.b === attach.b) : null;   // fly-down target, else the body whose moving frame we're locked to
+      if (!pref) for (const e of [focus, selected]) { if (!e || !e.b || e.sys !== s) continue; const it = activeView.items.find(x => x.b === e.b); if (it && camSys.distanceTo(it.world) < it.r * 40) { pref = it; break; } }
+      if (!pref && best && !best.star && best.b.parent && !near3(best)) { const pb = s.bodyMap[best.b.parent], it = pb && activeView.items.find(x => x.b === pb); if (it && camSys.distanceTo(it.world) < it.r * 40) pref = it; }
+      if (pref && pref !== best && (fd || !near3(best))) { best = pref; bd = dOf(pref); }
       if (!best) return null;
-      const b = best.b, rKm = b.radiusKm ?? (b.R ? b.R * RSUN_KM : null);
-      return { name: b.name, id: b.id || null, meters: rKm ? Math.max(0, bd / best.r * rKm * 1000) : bd * K * 9.4607e15, surface: false };
+      const b = best.b, rKm = b.radiusKm ?? (b.R ? b.R * RSUN_KM : null), meters = rKm ? Math.max(0, bd / best.r * rKm * 1000) : bd * K * 9.4607e15;
+      const top = best.A ? (best.A.top || 0) * rKm * 1000 : 0;
+      return { name: b.name, id: best.star ? (b.id || null) : eid(b), meters, surface: false, atmosphere: !best.star && hasAir(best) && meters < top + (1 - gasDeck(b)) * rKm * 1000, kind: kindOf(best) };
     },
     getSurface: () => ['surface', 'landing', 'takeoff'].includes(mode) ? { id: (surfEnt || landing?.e)?.id, name: (surfEnt || landing?.e)?.name, altitude: surf.state.hover, position: surf.state.pos.toArray() } : null,
     pick, screenPos, getLabels: labels,
@@ -842,7 +1272,7 @@ export async function init(opts = {}) {
       const g = galOf(cam.loc);
       return { mode, scale, galaxy: g ? { id: g.id, name: g.name } : null, system: cam.loc.sys ? { id: cam.loc.sys.id, name: cam.loc.sys.name } : null,
         focus: focus ? focus.id : null, selected: selected ? selected.id : null, distanceLy: focus ? delta(cam.loc, focus.loc()).length() : null, distanceText: distanceText(),
-        speedLyps: fly.speed, frame: cam.loc.sys ? 'system' : g ? 'galaxy' : 'universe', position: camUni.toArray(), galacticPosition: g ? camGal.toArray() : null, boost };
+        speedLyps: fly.speed, speedMps: mode === 'free' ? fly.mps ?? null : null, frame: cam.loc.sys ? 'system' : g ? 'galaxy' : 'universe', position: camUni.toArray(), galacticPosition: g ? camGal.toArray() : null, boost };
     },
     getSystem(id) { const s = getSystem(String(id).split('#')[0]); if (!s) return null;
       return { id: s.id, name: s.name, real: !!s.real, stars: s.stars.map(b => ({ id: b.id, name: b.name, cls: b.cls, sub: b.sub, T: Math.round(b.T), R: +b.R.toPrecision(4) })),
@@ -860,14 +1290,14 @@ export async function init(opts = {}) {
     addBookmark(id) { const e = entity(id || (selected && selected.id)); if (!e) return false; if (!bookmarks.some(b => b.id === e.id)) { bookmarks.push({ id: e.id, name: e.name, kind: e.kind }); saveLS('bookmarks', bookmarks); ev('se2:bookmarks', { bookmarks }); } return true; },
     removeBookmark(id) { bookmarks = bookmarks.filter(b => b.id !== id); saveLS('bookmarks', bookmarks); ev('se2:bookmarks', { bookmarks }); return true; },
     getDiscoveries: () => Object.entries(discovered).map(([id, d]) => ({ id, ...d })),
-    setTimeSpeed(x) { timeSpeed = Number(x) || 0; return timeSpeed; }, getTimeSpeed: () => timeSpeed,
+    setTimeSpeed(x) { x = Number(x); timeSpeed = isFinite(x) ? clamp(x, -1e5, 1e5) : timeSpeed; return timeSpeed; }, getTimeSpeed: () => timeSpeed,
     getDate: () => new Date(J2000 + simDays * 86400000),
     setQuality(name) {
       if (!QUALITY[name]) return false; qName = name; Q = QUALITY[name]; maxPR = Math.min(window.devicePixelRatio || 1, Q.maxPR); stars.quality = Q.stars; for (const l of stars.levels) l.center = null;
       for (const [id, c] of clouds) { c.dispose(); clouds.delete(id); }
       gsky.dispose(); gsky = createGalaxySky(renderer, Q.sky, post.hdr, qName);
-      post.setTier(qName); nebField.setQuality(qName); surf.setQuality(qName); rebuildViews();
-      if (pixelRatio > maxPR) setPR(maxPR); return true; },
+      post.setTier(qName); nebField.setQuality(qName); gasIn.setScale(GAS_SCALE[qName] || 0.45); surf.setQuality(qName); rebuildViews();
+      if (pixelRatio > maxPR || name === 'ultra') setPR(maxPR); return true; },
     setRealScale(on) {
       on = !!on; if (on === isRealScale()) return on;
       if (['landing', 'takeoff', 'surface'].includes(mode)) exitSurfaceNow();
@@ -884,11 +1314,11 @@ export async function init(opts = {}) {
     setSunElevation(deg, az) { return mode === 'surface' ? surf.setSun(+deg, az == null ? undefined : +az) : false; },
     getQuality: () => qName,
     getStats: () => ({ fps: Math.round(fps * 10) / 10, pixelRatio: +pixelRatio.toFixed(2), drawCalls: lastStats.calls, triangles: lastStats.triangles, points: lastStats.points,
-      tier: qName, hdr: post.hdr, realScale: isRealScale(), terrainTiles: active === 'surface' ? surf.tileCount : 0, starsLoaded: stars.count(), galaxiesLoaded: uni.galaxies.length, cloudParticles: [...clouds.values()].reduce((a, c) => a + c.count, 0), systemViews: views.size, texturesPending: texQueue.length, quality: qName, mode, scale }),
+      tier: qName, pixelRatio, maxPixelRatio: maxPR, msaa: post.samples ? post.samples() : 0, hdr: post.hdr, realScale: isRealScale(), terrainTiles: active === 'surface' ? surf.tileCount : terr && terr.group.visible ? terr.tileCount : 0, starsLoaded: stars.count(), galaxiesLoaded: uni.galaxies.length, cloudParticles: [...clouds.values()].reduce((a, c) => a + c.count, 0), systemViews: views.size, texturesPending: texQueue.length, quality: qName, mode, scale }),
     getMode: () => mode, getScale: () => scale,
     enableJoystick(on = true) { if (on && !joystick) joystick = createJoystick(SE2); if (!on && joystick) { joystick.destroy(); joystick = null; } return !!joystick; },
     fmtDist,
-    _debug: { THREE, renderer, post, cam, entity, getSystem, stars, uni, views, clouds, skyBox, uniScene, galScene, starScene, sysScene, surf, nebField, gsky: () => gsky },
+    _debug: { THREE, renderer, post, cam, entity, getSystem, stars, uni, views, clouds, skyBox, uniScene, galScene, starScene, sysScene, surf, nebField, gsky: () => gsky, terrain: () => terr, terrInfo: () => terrInfo(), fd: () => fd, lockInfo: () => attach && { b: attach.b.name, spin: !!attach.spin }, local: () => attach && V().copy(cam.loc.p).sub(attach.bw).applyQuaternion(attach.qB.clone().invert()).toArray(), vel: () => fly.vel.toArray(), fly: () => fly.dbg, pitch: () => { const s = cam.loc.sys, g = gasState && gasState.it, ti = terrInfo(); const up = ti ? ti.dirSys.clone() : g ? V().copy(cam.loc.p).sub(bodyPosition(s, g.b, simDays, V())).normalize() : null; if (!up || !s) return null; up.applyQuaternion(s.uq); return Math.asin(clamp(V(0, 0, -1).applyQuaternion(cam.q).dot(up), -1, 1)) / D2R; }, near: () => nearestDistLy() / K, boost: () => boost, gas: () => gasState && { r: gasState.it.r, rk: gasState.it.b.radiusKm, h: gasState.h, alpha: gasIn.U.uAlpha.value, H: gasIn.U.uH.value, sunE: gasIn.U.uUp.value.dot(gasIn.U.uSun.value) } },
   };
   window.SE2 = SE2;
   ev('se2:ready', { seed: SEED });

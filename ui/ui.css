@@ -56,3 +56,71 @@ body.x2-card-open #se-joy{display:none}
 #x2-alt.low{border-color:#e8a33a;color:#ffd58a}
 #x2-flyhint{display:none;position:absolute;left:50%;transform:translateX(-50%);bottom:calc(max(22px,env(safe-area-inset-bottom)) + 150px);padding:7px 14px;border-radius:18px;background:rgba(0,14,40,.8);border:1px solid #3b7dd8;color:#cfe6ff;font-size:13px;z-index:3;white-space:nowrap;max-width:90vw;overflow:hidden;text-overflow:ellipsis}
 #x2-flyhint button{background:#2563c9;border:0;color:#fff;font-size:15px;padding:6px 14px;border-radius:14px}
+/* short screens (landscape phones): side buttons wrap into columns that stop above the up/down buttons */
+@media (max-height:500px){
+ #x2-side{flex-wrap:wrap-reverse;flex-direction:column;align-content:flex-end;max-height:calc(100vh - max(8px,env(safe-area-inset-top)) - 52px - 150px);gap:5px}
+ #x2-side .x2b{min-width:36px;height:36px;font-size:15px}
+ #x2-flyhint{bottom:auto;top:calc(max(8px,env(safe-area-inset-top)) + 50px)}
+ #x2-alt{top:calc(max(8px,env(safe-area-inset-top)) + 88px)}
+}
+#x2-spin.on{background:#c5502a;border-color:#f97}
+
+/* ===== Nova theme: glass + glow restyle ===== */
+@import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700&family=Orbitron:wght@600;800&display=swap');
+#x2-ui,#x2-title{--acc:#5cc8ff;--acc2:#8a6bff;--glass:rgba(8,14,34,.55);--line:rgba(120,190,255,.28);font-family:'Exo 2',system-ui,-apple-system,sans-serif;letter-spacing:.2px}
+#x2-search,.x2b,#x2-card,#x2-results,#x2-panel,#x2-alt,#x2-flyhint,#x2-toast{background:var(--glass);border:1px solid var(--line);-webkit-backdrop-filter:blur(14px) saturate(140%);backdrop-filter:blur(14px) saturate(140%);box-shadow:0 6px 24px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.07)}
+#x2-search{border-radius:14px;padding:11px 14px 11px 38px;font-family:inherit;background:var(--glass) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%239fd6ff' stroke-width='2'%3E%3Ccircle cx='7' cy='7' r='5'/%3E%3Cpath d='M11 11l4 4'/%3E%3C/svg%3E") 13px 50%/16px no-repeat;transition:border-color .2s,box-shadow .2s}
+#x2-search:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(92,200,255,.18),0 6px 24px rgba(0,0,0,.45)}
+.x2b{border-radius:12px;min-width:40px;height:40px;font-size:17px;font-family:inherit;transition:transform .12s,background .2s,border-color .2s,box-shadow .2s}
+.x2b:hover{border-color:var(--acc)}
+.x2b:active{transform:scale(.92)}
+.x2b.on,.x2b:active{background:linear-gradient(135deg,rgba(92,200,255,.35),rgba(138,107,255,.35));border-color:var(--acc);box-shadow:0 0 14px rgba(92,200,255,.45)}
+#x2-side{gap:6px;padding:6px;border-radius:16px;background:rgba(8,14,34,.28);border:1px solid rgba(120,190,255,.12)}
+#x2-side .x2b{background:rgba(255,255,255,.04);box-shadow:none;border-color:transparent;-webkit-backdrop-filter:none;backdrop-filter:none}
+#x2-side .x2b.on{border-color:var(--acc);background:linear-gradient(135deg,rgba(92,200,255,.35),rgba(138,107,255,.35))}
+#x2-spin.on{background:linear-gradient(135deg,#ff7a45,#e0407a)!important;border-color:#ffb38a!important;box-shadow:0 0 14px rgba(255,120,80,.5)}
+#x2-q{font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:.5px}
+#x2-hud{font-size:12px;color:#a9d8ff;text-shadow:0 1px 4px #000}
+#x2-hud b{font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--acc)}
+#x2-card{border-radius:20px;padding:16px 16px 14px;background:linear-gradient(180deg,rgba(14,22,52,.72),rgba(6,10,26,.78));border-top:2px solid transparent;border-image:none;animation:x2in .28s ease-out}
+#x2-card::before{content:'';position:absolute;left:18px;right:18px;top:0;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--acc),var(--acc2))}
+#x2-card h2{font-family:'Orbitron',sans-serif;font-size:20px;letter-spacing:1px;background:linear-gradient(90deg,#fff,#bfe6ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+#x2-card .ty{color:var(--acc);font-size:12px;text-transform:uppercase;letter-spacing:1px}
+#x2-card table{margin:10px 0;border-spacing:0 3px;border-collapse:separate}
+#x2-card td{padding:3px 0}
+#x2-card td:first-child{color:#7f9cc0;font-size:12px}
+#x2-card td:last-child{font-weight:600}
+#x2-card p{color:#cfd9ee}
+#x2-card .x{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.08);font-size:18px;line-height:30px;text-align:center;padding:0}
+#x2-card .acts button{border-radius:12px;font-family:inherit;font-weight:600;background:linear-gradient(135deg,#2d8cff,#7a5cff);box-shadow:0 4px 16px rgba(80,120,255,.4);transition:transform .12s}
+#x2-card .acts button:active{transform:scale(.96)}
+#x2-card .acts .bm{background:rgba(255,255,255,.08);box-shadow:none}
+#x2-card .ch button,#x2-card .up{border-radius:20px;border:1px solid var(--line);background:rgba(255,255,255,.05);font-family:inherit}
+#x2-results{border-radius:16px}
+#x2-results button{font-family:inherit;border-bottom:1px solid rgba(120,190,255,.1)}
+#x2-results button:hover{background:rgba(92,200,255,.12)}
+#x2-panel{border-radius:18px}
+#x2-panel h3{font-family:'Orbitron',sans-serif;font-size:14px;letter-spacing:1.5px;color:var(--acc)}
+#x2-alt{border-radius:14px;font-family:'Orbitron',sans-serif;font-size:14px;letter-spacing:.5px}
+#x2-alt.low{border-color:#ffb24a;box-shadow:0 0 16px rgba(255,170,60,.35)}
+#x2-flyhint{border-radius:16px}
+#x2-flyhint button{border-radius:12px;background:linear-gradient(135deg,#2d8cff,#7a5cff);font-family:inherit;font-weight:600}
+#x2-toast{border-radius:14px;background:linear-gradient(135deg,rgba(45,140,255,.7),rgba(122,92,255,.7))}
+#x2-takeoff{border-radius:14px;background:linear-gradient(135deg,#ff7a45,#e0407a);font-family:inherit;font-weight:700;box-shadow:0 4px 18px rgba(255,100,80,.45)}
+#x2-labels .lab{font-family:'Exo 2',sans-serif;letter-spacing:.3px}
+#x2-labels .lab.sel{color:#ffe08a;text-shadow:0 0 8px rgba(255,210,90,.6),0 1px 3px #000}
+#x2-credits{font-family:inherit;letter-spacing:1px;color:#7f9cc0}
+#x2-title{background:radial-gradient(ellipse at 50% 35%,rgba(60,40,140,.55),rgba(5,8,25,.9) 60%,#000)}
+#x2-title h1{font-family:'Orbitron',sans-serif;font-weight:800;font-size:30px;letter-spacing:5px;background:linear-gradient(90deg,#7fd8ff,#fff,#b59cff);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 18px rgba(92,200,255,.45));animation:x2in .8s ease-out}
+#x2-title p{color:#9fbfe6;letter-spacing:.5px}
+#x2-title button{font-family:'Orbitron',sans-serif;font-size:15px;letter-spacing:3px;border-radius:16px;border:1px solid rgba(160,220,255,.6);background:linear-gradient(135deg,#2d8cff,#7a5cff);box-shadow:0 0 30px rgba(92,160,255,.5);animation:x2pulse 2.4s ease-in-out infinite}
+@keyframes x2in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes x2pulse{50%{box-shadow:0 0 44px rgba(138,107,255,.75)}}
+/* card no longer hides the side rail on phones */
+@media (max-width:600px){#x2-card{right:64px;left:8px;max-height:46vh}#x2-flyhint{bottom:calc(max(22px,env(safe-area-inset-bottom)) + 46vh + 10px)}body.x2-card-open #x2-flyhint{display:none!important}}
+@media (max-height:500px){#x2-side{padding:4px;gap:4px}}
+/* start screen: hide game controls until Start is tapped; bigger tap targets */
+body:has(#x2-title) #x2-ui,body:has(#x2-title) #se-joy{visibility:hidden}
+#x2-credits{min-height:44px;min-width:88px;padding:0 14px;bottom:max(0px,env(safe-area-inset-bottom))}
+#x2-flyhint{padding:5px 6px 5px 14px}
+#x2-flyhint button{min-height:44px;padding:0 18px}

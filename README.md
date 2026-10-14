@@ -139,6 +139,4 @@ addEventListener('se2:ready', async () => {
 ```
 
 ## Credits
-Made by Nova Labs ⭐
-
 See `CREDITS.md`. Original code; inspired by the idea of universe-scale explorers but contains no code or assets from Space Engine.
