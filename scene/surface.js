@@ -2,8 +2,8 @@
 // craters, dunes; skirts; planet curvature), horizon-traced terrain shadows, physically based sky (Rayleigh + Mie single
 // scattering into a sky-view LUT – the same model and constants as the orbital atmosphere), aerial perspective,
 // sun disc + glare, water / lava seas, normal-lit rocks. Outputs linear HDR (tone-mapped by engine/post.js).
-import * as THREE from './vendor/three.module.min.js?v=20261014a';
-import { makeNoise, groundTexture } from './textures.js?v=20261014a';
+import * as THREE from './vendor/three.module.min.js?v=20261014b';
+import { makeNoise, groundTexture } from './textures.js?v=20261014b';
 
 const EYE = 1.7, ROOT = 16384;
 const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };

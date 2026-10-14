@@ -1,6 +1,6 @@
 // Inside a gas / ice giant: full-screen ray-cast of the upper atmosphere, three banded cloud layers and a deep
 // cloud-deck floor (no solid ground). Drawn over the system render while the camera is below ~ +180 km. Original code.
-import * as THREE from '../scene/vendor/three.module.min.js?v=20261014a';
+import * as THREE from '../scene/vendor/three.module.min.js?v=20261014b';
 
 // heights relative to the 1-bar radius (metres)
 export const GAS_LAYERS = { haze: 45e3, ammonia: 12e3, water: -25e3, floor: -60e3 };

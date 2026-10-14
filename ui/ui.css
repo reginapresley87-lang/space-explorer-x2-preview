@@ -117,7 +117,7 @@ body.x2-card-open #se-joy{display:none}
 @keyframes x2in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 @keyframes x2pulse{50%{box-shadow:0 0 44px rgba(138,107,255,.75)}}
 /* card no longer hides the side rail on phones */
-@media (max-width:600px){#x2-card{right:64px;left:8px;max-height:46vh}#x2-flyhint{bottom:calc(max(22px,env(safe-area-inset-bottom)) + 46vh + 10px)}body.x2-card-open #x2-flyhint{display:none!important}}
+@media (max-width:600px){#x2-card{right:64px;left:8px;max-height:46vh}#x2-flyhint{bottom:calc(max(22px,env(safe-area-inset-bottom)) + 46vh + 10px)}}
 @media (max-height:500px){#x2-side{padding:4px;gap:4px}}
 /* start screen: hide game controls until Start is tapped; bigger tap targets */
 body:has(#x2-title) #x2-ui,body:has(#x2-title) #se-joy{visibility:hidden}

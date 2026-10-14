@@ -1,17 +1,17 @@
 // Space Explorer X 2 – engine. Seamless multi-scale renderer + navigation; exposes window.SE2 (see README.md).
-import * as THREE from '../scene/vendor/three.module.min.js?v=20261014a';
-import { createJoystick } from '../scene/joystick.js?v=20261014a';
-import { createSurface } from '../scene/surface.js?v=20261014a';
-import { hash, rng, clamp, TAU, D2R, fmtDist, starName, smooth } from './util.js?v=20261014a';
-import { REAL_GALAXIES, galaxyById, galaxyTypeLabel, densityAt, SOL_GPOS, LOCAL_VOID } from './universe.js?v=20261014a';
-import { StarField, REAL_STARS, starById, starName_, sectorStars, LEVELS, CLASS_INFO } from './stars.js?v=20261014a';
-import { systemFor, LY_PER_SU as K, bodyPosition, TYPE_LABEL, REARTH_KM, RSUN_KM, setRealScale, isRealScale, AU_SU } from './sysgen.js?v=20261014a';
-import { createSystemView, texQueue, uploadQueue, atmoParams, SPIN, QDEF } from './sysview.js?v=20261014a';
-import { createTerrain, TERRAIN_LAYER } from './terrain.js?v=20261014a';
-import { createGasInterior, GAS_LAYERS, GAS_FADE } from './gasdeck.js?v=20261014a';
-import { UniverseView, createGalaxyCloud, createSkyBox, createGalaxySky } from './views.js?v=20261014a';
-import { createPost } from './post.js?v=20261014a';
-import { NebulaField, REAL_NEBULAE, nebulaById, nebulaeNear } from './nebulae.js?v=20261014a';
+import * as THREE from '../scene/vendor/three.module.min.js?v=20261014b';
+import { createJoystick } from '../scene/joystick.js?v=20261014b';
+import { createSurface } from '../scene/surface.js?v=20261014b';
+import { hash, rng, clamp, TAU, D2R, fmtDist, starName, smooth } from './util.js?v=20261014b';
+import { REAL_GALAXIES, galaxyById, galaxyTypeLabel, densityAt, SOL_GPOS, LOCAL_VOID } from './universe.js?v=20261014b';
+import { StarField, REAL_STARS, starById, starName_, sectorStars, LEVELS, CLASS_INFO } from './stars.js?v=20261014b';
+import { systemFor, LY_PER_SU as K, bodyPosition, TYPE_LABEL, REARTH_KM, RSUN_KM, setRealScale, isRealScale, AU_SU } from './sysgen.js?v=20261014b';
+import { createSystemView, texQueue, uploadQueue, atmoParams, SPIN, QDEF } from './sysview.js?v=20261014b';
+import { createTerrain, TERRAIN_LAYER } from './terrain.js?v=20261014b';
+import { createGasInterior, GAS_LAYERS, GAS_FADE } from './gasdeck.js?v=20261014b';
+import { UniverseView, createGalaxyCloud, createSkyBox, createGalaxySky } from './views.js?v=20261014b';
+import { createPost } from './post.js?v=20261014b';
+import { NebulaField, REAL_NEBULAE, nebulaById, nebulaeNear } from './nebulae.js?v=20261014b';
 
 const LAND_MS = 2500, MAX_ORBIT = 3e9, J2000 = Date.UTC(2000, 0, 1, 12);
 const GAS_SCALE = { low: 0.33, medium: 0.45, high: 0.6, ultra: 0.8 };
@@ -134,7 +134,7 @@ export async function init(opts = {}) {
   let mode = 'orbit', focus = null, selected = null, flight = null, timeSpeed = 1, boost = 1;
   let simDays = (Date.now() - J2000) / 86400000;
   const orb = { theta: 0.5, phi: 1.25, dist: 1 }, cur = { theta: 0.5, phi: 1.25, ld: 0 };
-  const fly = { input: V(), vel: V(), speed: 0 };
+  const fly = { input: V(), vel: V(), speed: 0 }; let passT = null;
   // ---------- seamless planet flight state ----------
   const SEAMLESS = () => window.X2_SEAMLESS !== false;
   let terr = null, attach = null, orbSpin = null, tiCache = null, fd = null;   // fd: fly-down autopilot
@@ -179,7 +179,7 @@ export async function init(opts = {}) {
   const faded = new Set();
   // galaxy cloud particles are built in a worker as soon as a galaxy is within ~4.5 R (the cloud only fades in inside 3 R)
   const cloudPre = new Map(); let gWorker = null;
-  try { gWorker = new Worker(new URL('./galaxy_worker.js?v=20261014a', import.meta.url), { type: 'module' });
+  try { gWorker = new Worker(new URL('./galaxy_worker.js?v=20261014b', import.meta.url), { type: 'module' });
     gWorker.onmessage = e => { const j = cloudPre.get(e.data.id); if (j) { if (e.data.d) { j.d = e.data.d; j.state = 'ready'; } else { j.state = 'failed'; } } };
     gWorker.onerror = () => { gWorker = null; for (const j of cloudPre.values()) if (j.state === 'busy') j.state = 'failed'; }; } catch (e) { gWorker = null; }
   const cloudN = gg => Math.round(Q.cloud * (gg.R < 10000 ? 0.4 : 1));
@@ -401,6 +401,7 @@ export async function init(opts = {}) {
     if (mode === 'flight') return updateFlight(dt);
     if (mode === 'orbit' && fd && focus === fd.e) { attach = null; setMode('free'); }
     if (mode === 'orbit') {
+      if (attach && focus && attach.b !== focus.b) attach = null;   // jumped to another body: drop the old frame lock (altitude readout kept Saturn at the Sun)
       const k = 1 - Math.exp(-dt * 8);
       cur.theta += (orb.theta - cur.theta) * k; cur.phi += (orb.phi - cur.phi) * k; cur.ld += (Math.log(orb.dist) - cur.ld) * k;
       const off = sph(Math.exp(cur.ld), cur.phi, cur.theta, V()).applyQuaternion(focus.frameQ), up = Y.clone().applyQuaternion(focus.frameQ);
@@ -439,11 +440,27 @@ export async function init(opts = {}) {
       // body's surface: ~2 x altitude per second within 50 radii, opening up quadratically beyond (full boost again far from bodies).
       // On top of that one frame may never move more than 40% of that distance, so no frame can jump past or into a body.
       if (cam.loc.sys && nearestDistLy.r > 0) {
-        const R = nearestDistLy.r, lim = near * 2 * Math.max(1, (near / (50 * R)) ** 2), stepMax = 0.4 * near / Math.max(dt, 1e-4);
+        const R = nearestDistLy.r; let lim = near * 2 * Math.max(1, (near / (50 * R)) ** 2);
+        // close pass (< 20 radii): for 8 s afterwards the speed stays capped at 40 radii/s, so a near miss can't fling you out of the system
+        if (near < 20 * R) passT = { t: performance.now(), R };
+        if (passT && performance.now() - passT.t < 8000) lim = Math.min(lim, 40 * passT.R); else passT = null;
+        const stepMax = 0.4 * near / Math.max(dt, 1e-4);
         const vmax = Math.min(lim, stepMax), vl = fly.vel.length();
         fly.braking = vl > vmax * 1.001 && fly.input.lengthSq() > 0; if (vl > vmax) fly.vel.multiplyScalar(vmax / vl);
         fly.dbg.lim = vmax;
       } else fly.braking = false;
+      // aim assist (boost > 10, flying forward): if a planet/moon within 1500 radii is within ~20 deg (35 deg inside 150 radii, 46 deg for the selected/focused body) of the heading, the view turns
+      // toward it (stronger closer and the more boost) so an off-centre or drifting target is still met instead of overshot
+      if (boost > 10 && fly.input.z > 0.3 && cam.loc.sys && activeView && !fd) {
+        const s = cam.loc.sys, f0 = V(0, 0, -1).applyQuaternion(cam.q); let tgt = null, tb = Infinity;
+        for (const it of activeView.items) { if (it.star || !it.b.radiusKm) continue;
+          const rel = bodyPosition(s, it.b, simDays, V()).sub(cam.loc.p), dR = rel.length() / it.r; if (dR > 1500 || dR < 1.3) continue;
+          rel.applyQuaternion(s.uq).normalize(); const ang = Math.acos(clamp(rel.dot(f0), -1, 1)); const isPref = (selected && selected.b === it.b) || (focus && focus.b === it.b); if (ang > (isPref ? 0.8 : dR < 150 ? 0.61 : 0.35)) continue;
+          const sc = (ang + 0.05 * Math.log10(dR)) * (it.b.kind === 'moon' && dR > 20 ? 3 : 1) * (isPref ? 0.3 : 1); if (sc < tb) { tb = sc; tgt = { dir: rel, ang }; } }
+        if (tgt && tgt.ang > 1e-4) { const k = (1 - Math.exp(-dt * 2.5)) * clamp(Math.log10(boost) / 3, 0.3, 1);
+          const qd = new THREE.Quaternion().setFromUnitVectors(f0, tgt.dir), qk = new THREE.Quaternion().slerp(qd, k);
+          cam.q.premultiply(qk).normalize(); fly.vel.multiplyScalar(1 - k * 0.5 * tgt.ang / 0.61); }
+      }
       fwd.set(0, 0, -1).applyQuaternion(cam.q); right.set(1, 0, 0).applyQuaternion(cam.q); upv.set(0, 1, 0).applyQuaternion(cam.q);
       const d = V().addScaledVector(right, fly.vel.x * dt).addScaledVector(upv, fly.vel.y * dt).addScaledVector(fwd, fly.vel.z * dt);
       // skim assist: near the ground, flying level (pitch within ~15 deg) holds altitude instead of slowly climbing / sinking
@@ -1248,18 +1265,21 @@ export async function init(opts = {}) {
       const s = cam.loc.sys, eid = b => s.id + '#' + b.key;
       const hasAir = it => !!(it.atmo || (it.b && it.b.atmo)), kindOf = it => it.star ? 'star' : isGiant(it.b) ? 'gas' : 'rocky';
       const ti = terrInfo();
-      if (ti && terr) { let other = false; if (!(fd && fd.e.b === terr.it.b)) for (const it of activeView.items) if (it !== terr.it && camSys.distanceTo(it.world) - it.r < ti.alt / ti.mPerSu && camSys.distanceTo(it.world) < it.r * 3) other = true;
+      const focIt = !fd && mode === 'orbit' && focus && focus.b && focus.sys === s ? activeView.items.find(x => x.b === focus.b) : null;
+      const focusOther = focIt && terr && focIt.b !== terr.it.b && ti && ti.alt > terr.R * 2;   // orbiting Earth: don't report the Moon's terrain just because it's nearer in the compressed layout
+      if (ti && terr && !focusOther) { let other = false; if (!(fd && fd.e.b === terr.it.b)) for (const it of activeView.items) if (it !== terr.it && camSys.distanceTo(it.world) - it.r < ti.alt / ti.mPerSu && camSys.distanceTo(it.world) < it.r * 3) other = true;
         if (!other) { const it = terr.it, top = it.A ? (it.A.top || 0) * terr.R : 0;
           return { name: it.b.name, id: eid(it.b), meters: Math.max(0, ti.alt), surface: false, terrain: true, atmosphere: hasAir(it) && ti.D - terr.R < top, kind: 'rocky' }; } }
+      const wp = new Map(); const W = it => { let w = wp.get(it); if (!w) { w = it.star || !it.b.radiusKm ? it.world : bodyPosition(s, it.b, simDays, V()); wp.set(it, w); } return w; };   // this frame's positions (it.world can be stale for bodies not drawn)
       let best = null, bd = Infinity;
-      for (const it of activeView.items) { const d = camSys.distanceTo(it.world) - it.r * (it.star ? 1 : gasDeck(it.b)); if (d < bd) { bd = d; best = it; } }
+      for (const it of activeView.items) { const d = cam.loc.p.distanceTo(W(it)) - it.r * (it.star ? 1 : gasDeck(it.b)); if (d < bd) { bd = d; best = it; } }
       // prefer the body we are "at" over small neighbours: fly-down target, else the focused / selected body or the planet whose
       // neighbourhood we are in, unless we are really close to the other body (within 3 of its radii)
-      const dOf = it => camSys.distanceTo(it.world) - it.r * (it.star ? 1 : gasDeck(it.b));
-      const near3 = it => it && camSys.distanceTo(it.world) < it.r * 3;
-      let pref = fd ? activeView.items.find(x => x.b === fd.e.b) : mode === 'free' && attach && attach.s === s ? activeView.items.find(x => x.b === attach.b) : null;   // fly-down target, else the body whose moving frame we're locked to
-      if (!pref) for (const e of [focus, selected]) { if (!e || !e.b || e.sys !== s) continue; const it = activeView.items.find(x => x.b === e.b); if (it && camSys.distanceTo(it.world) < it.r * 40) { pref = it; break; } }
-      if (!pref && best && !best.star && best.b.parent && !near3(best)) { const pb = s.bodyMap[best.b.parent], it = pb && activeView.items.find(x => x.b === pb); if (it && camSys.distanceTo(it.world) < it.r * 40) pref = it; }
+      const dOf = it => cam.loc.p.distanceTo(W(it)) - it.r * (it.star ? 1 : gasDeck(it.b));
+      const near3 = it => it && cam.loc.p.distanceTo(W(it)) < it.r * 3;
+      let pref = fd ? activeView.items.find(x => x.b === fd.e.b) : attach && attach.s === s ? activeView.items.find(x => x.b === attach.b) : null;   // fly-down target, else the body whose moving frame we're locked to
+      if (!pref) for (const e of [focus, selected]) { if (!e || !e.b || e.sys !== s) continue; const it = activeView.items.find(x => x.b === e.b); if (it && cam.loc.p.distanceTo(W(it)) < it.r * 40) { pref = it; break; } }
+      if (!pref && best && !best.star && best.b.parent && !near3(best)) { const pb = s.bodyMap[best.b.parent], it = pb && activeView.items.find(x => x.b === pb); if (it && cam.loc.p.distanceTo(W(it)) < it.r * 40) pref = it; }
       if (pref && pref !== best && (fd || !near3(best))) { best = pref; bd = dOf(pref); }
       if (!best) return null;
       const b = best.b, rKm = b.radiusKm ?? (b.R ? b.R * RSUN_KM : null), meters = rKm ? Math.max(0, bd / best.r * rKm * 1000) : bd * K * 9.4607e15;

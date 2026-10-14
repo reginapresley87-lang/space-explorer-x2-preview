@@ -1,9 +1,9 @@
 // Renders one star system. Bodies are positioned camera-relative in double precision (JS) every frame so the same
 // code works for the compressed layout and for true scale. Everything outputs linear HDR (see engine/post.js).
-import * as THREE from '../scene/vendor/three.module.min.js?v=20261014a';
-import { bodyTexture, ringTexture, glowTexture } from '../scene/textures.js?v=20261014a';
-import { PLANET_VS, PLANET_FS, TEX_VS, TEX_FS, CLOUD_FS, ATMO_VS, ATMO_FS, STAR_VS, STAR_FS, CORONA_VS, CORONA_FS, RING_VS, RING_FS, DISK_VS, DISK_FS } from './shaders.js?v=20261014a';
-import { bodyPosition } from './sysgen.js?v=20261014a';
+import * as THREE from '../scene/vendor/three.module.min.js?v=20261014b';
+import { bodyTexture, ringTexture, glowTexture } from '../scene/textures.js?v=20261014b';
+import { PLANET_VS, PLANET_FS, TEX_VS, TEX_FS, CLOUD_FS, ATMO_VS, ATMO_FS, STAR_VS, STAR_FS, CORONA_VS, CORONA_FS, RING_VS, RING_FS, DISK_VS, DISK_FS } from './shaders.js?v=20261014b';
+import { bodyPosition } from './sysgen.js?v=20261014b';
 
 const TYPE_ID = { rocky: 0, ocean: 1, lava: 2, ice: 3, desert: 4, gas: 5, icegiant: 5 };
 const LOD = [new THREE.SphereGeometry(1, 14, 10), new THREE.SphereGeometry(1, 32, 22), new THREE.SphereGeometry(1, 64, 44), new THREE.SphereGeometry(1, 128, 88)];

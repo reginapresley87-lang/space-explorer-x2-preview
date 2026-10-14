@@ -1,7 +1,7 @@
 // HDR post-processing: linear half-float scene target -> bloom (dual-filter mip chain) -> auto exposure
 // (GPU log-average luminance with temporal adaptation) -> diffraction spikes, glare & lens flare -> ACES filmic
 // tone mapping -> sRGB. Quality tiers: low = tone mapping + exposure only, medium = + bloom + spikes, high = + flare + MSAA.
-import * as THREE from '../scene/vendor/three.module.min.js?v=20261014a';
+import * as THREE from '../scene/vendor/three.module.min.js?v=20261014b';
 
 const QUAD_VS = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0., 1.); }`;
 const DOWN_FS = `uniform sampler2D uSrc; uniform vec2 uTexel; uniform float uKaris; varying vec2 vUv;

@@ -1,9 +1,9 @@
 // Star level: deterministic octree-like sector streaming of stars inside the current galaxy.
 // Level k uses bigger sectors and only the intrinsically brighter classes, so far-away bright stars
 // are present without generating billions of dim ones (implied by the galaxy particle cloud).
-import * as THREE from '../scene/vendor/three.module.min.js?v=20261014a';
-import { hash, rng, starName, tempColor, clamp } from './util.js?v=20261014a';
-import { densityAt, MAX_DENSITY, SOL_GPOS } from './universe.js?v=20261014a';
+import * as THREE from '../scene/vendor/three.module.min.js?v=20261014b';
+import { hash, rng, starName, tempColor, clamp } from './util.js?v=20261014b';
+import { densityAt, MAX_DENSITY, SOL_GPOS } from './universe.js?v=20261014b';
 
 export const LEVELS = [
   { size: 12, rad: 2, cap: 40, classes: [['M', 0.0028], ['K', 0.0004], ['WD', 0.0004]] },

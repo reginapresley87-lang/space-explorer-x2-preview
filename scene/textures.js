@@ -1,5 +1,5 @@
 // Procedural, original textures generated at runtime on <canvas>. No image assets.
-import * as THREE from './vendor/three.module.min.js?v=20261014a';
+import * as THREE from './vendor/three.module.min.js?v=20261014b';
 
 // ---------- seeded RNG + 3D gradient noise ----------
 export function rng(seed) {

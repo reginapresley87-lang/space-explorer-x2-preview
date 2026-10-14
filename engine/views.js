@@ -1,8 +1,8 @@
 // Universe (galaxy impostors + cosmic web), galaxy particle clouds (layered sprites) and the in-galaxy sky
 // (ray-marched from the same analytic star + dust density the star streamer uses). Linear HDR output.
-import * as THREE from '../scene/vendor/three.module.min.js?v=20261014a';
-import { NOISE } from './shaders.js?v=20261014a';
-import { REAL_GALAXIES, universeSector, farSector, U_SECTOR, U_FAR, galaxyParticles } from './universe.js?v=20261014a';
+import * as THREE from '../scene/vendor/three.module.min.js?v=20261014b';
+import { NOISE } from './shaders.js?v=20261014b';
+import { REAL_GALAXIES, universeSector, farSector, U_SECTOR, U_FAR, galaxyParticles } from './universe.js?v=20261014b';
 
 const TYPE_N = { spiral: 0, barred: 1, elliptical: 2, irregular: 3 };
 const MLY = 1e6;

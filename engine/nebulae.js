@@ -1,9 +1,9 @@
 // Nebulae: real (Orion, Carina, Eagle, Lagoon, Helix) + procedural emission / planetary nebulae in the Milky Way's arms.
 // Rendered as ray-marched volumes (emission: H-alpha / O III, absorption: dust) in the star-field pass (ly units).
-import * as THREE from '../scene/vendor/three.module.min.js?v=20261014a';
-import { NOISE } from './shaders.js?v=20261014a';
-import { hash, rng, galDir, word, clamp } from './util.js?v=20261014a';
-import { SOL_GPOS, densityAt } from './universe.js?v=20261014a';
+import * as THREE from '../scene/vendor/three.module.min.js?v=20261014b';
+import { NOISE } from './shaders.js?v=20261014b';
+import { hash, rng, galDir, word, clamp } from './util.js?v=20261014b';
+import { SOL_GPOS, densityAt } from './universe.js?v=20261014b';
 
 const at = (l, b, d) => new THREE.Vector3(...galDir(l, b)).multiplyScalar(d).add(SOL_GPOS);
 export const REAL_NEBULAE = [

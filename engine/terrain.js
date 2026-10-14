@@ -1,7 +1,7 @@
 // Seamless planet terrain: cube-sphere quadtree LOD streamed from a worker, drawn with the body's own orbital
 // material (TERRAIN variant), so a planet looks the same from orbit and on the way down. Original code.
-import * as THREE from '../scene/vendor/three.module.min.js?v=20261014a';
-import { heightAt, tileIndex } from './terrain_height.js?v=20261014a';
+import * as THREE from '../scene/vendor/three.module.min.js?v=20261014b';
+import { heightAt, tileIndex } from './terrain_height.js?v=20261014b';
 
 const QSET = { low: { seg: 16, k: 1.15, minSp: 3.5, workers: 1 }, medium: { seg: 24, k: 1.35, minSp: 2.2, workers: 2 }, high: { seg: 32, k: 1.6, minSp: 1.5, workers: 2 }, ultra: { seg: 48, k: 2.1, minSp: 0.9, workers: 3 } };
 export const TERRAIN_LAYER = 1;
@@ -111,7 +111,7 @@ function getWorkers(n) {
   if (workers) return workers;
   workers = [];
   for (let i = 0; i < n; i++) {
-    try { const w = new Worker(new URL('./terrain_worker.js?v=20261014a', import.meta.url), { type: 'module' }); w.onmessage = e => { const cb = pending.get(e.data.id); if (cb) { pending.delete(e.data.id); cb(e.data); } }; w.load = 0; workers.push(w); }
+    try { const w = new Worker(new URL('./terrain_worker.js?v=20261014b', import.meta.url), { type: 'module' }); w.onmessage = e => { const cb = pending.get(e.data.id); if (cb) { pending.delete(e.data.id); cb(e.data); } }; w.load = 0; workers.push(w); }
     catch (e) { console.warn('[terrain] worker unavailable', e); }
   }
   return workers;

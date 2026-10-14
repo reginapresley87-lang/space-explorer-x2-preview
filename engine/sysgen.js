@@ -1,9 +1,9 @@
 // Star-system generation (pure data, deterministic). Procedural systems from a star record,
 // plus the real systems: Sol (from v1's bodies), Alpha Centauri, Proxima, Sirius, Betelgeuse, TRAPPIST-1, Sgr A*.
-import { hash, rng, clamp, LETTERS, ROMAN, tempColor, word } from './util.js?v=20261014a';
-import { starProps, spectral, CLASS_INFO, REAL_STARS } from './stars.js?v=20261014a';
-import { BODIES as CORE } from '../scene/bodies.js?v=20261014a';
-import { EXTRA } from '../scene/bodies_extra.js?v=20261014a';
+import { hash, rng, clamp, LETTERS, ROMAN, tempColor, word } from './util.js?v=20261014b';
+import { starProps, spectral, CLASS_INFO, REAL_STARS } from './stars.js?v=20261014b';
+import { BODIES as CORE } from '../scene/bodies.js?v=20261014b';
+import { EXTRA } from '../scene/bodies_extra.js?v=20261014b';
 
 export const LY_PER_SU = 2.5e-5;           // 1 system unit = 2.5e-5 ly (systems use v1's compressed scale)
 export const RSUN_KM = 695700, REARTH_KM = 6371;

@@ -1,5 +1,5 @@
 // Module worker: builds terrain tiles off the main thread (see terrain_height.js).
-import { buildTile } from './terrain_height.js?v=20261014a';
+import { buildTile } from './terrain_height.js?v=20261014b';
 const bodies = new Map();
 self.onmessage = e => {
   const m = e.data;
