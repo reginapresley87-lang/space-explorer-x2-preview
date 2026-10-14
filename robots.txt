@@ -1,2 +1,3 @@
 User-agent: *
-Disallow: /
+Allow: /
+Sitemap: https://reginapresley87-lang.github.io/space-explorer-x2-preview/sitemap.xml
