@@ -1257,7 +1257,7 @@ export async function init(opts = {}) {
       // neighbourhood we are in, unless we are really close to the other body (within 3 of its radii)
       const dOf = it => camSys.distanceTo(it.world) - it.r * (it.star ? 1 : gasDeck(it.b));
       const near3 = it => it && camSys.distanceTo(it.world) < it.r * 3;
-      let pref = fd ? activeView.items.find(x => x.b === fd.e.b) : attach && attach.s === s ? activeView.items.find(x => x.b === attach.b) : null;   // fly-down target, else the body whose moving frame we're locked to
+      let pref = fd ? activeView.items.find(x => x.b === fd.e.b) : mode === 'free' && attach && attach.s === s ? activeView.items.find(x => x.b === attach.b) : null;   // fly-down target, else the body whose moving frame we're locked to
       if (!pref) for (const e of [focus, selected]) { if (!e || !e.b || e.sys !== s) continue; const it = activeView.items.find(x => x.b === e.b); if (it && camSys.distanceTo(it.world) < it.r * 40) { pref = it; break; } }
       if (!pref && best && !best.star && best.b.parent && !near3(best)) { const pb = s.bodyMap[best.b.parent], it = pb && activeView.items.find(x => x.b === pb); if (it && camSys.distanceTo(it.world) < it.r * 40) pref = it; }
       if (pref && pref !== best && (fd || !near3(best))) { best = pref; bd = dOf(pref); }
