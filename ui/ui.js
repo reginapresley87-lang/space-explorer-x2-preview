@@ -113,9 +113,10 @@ export function initUI(SE2, opts = {}) {
     else {
       const where = st.system ? st.system.name : st.galaxy ? st.galaxy.name : 'Intergalactic space';
       const fi = st.focus && SE2.getInfo(st.focus);
-      let _al=null;try{_al=SE2.getAltitude&&SE2.getAltitude()}catch(e){}const _nearLbl=_al&&_al.kind!=='star'&&isFinite(_al.meters)?(_al.surface||_al.meters<2000?'Surface':_al.meters<100000?(_al.kind==='gas'?'Cloud tops':_al.atmosphere===false?'Low orbit':'Atmosphere'):null):null;
-      hud.innerHTML = `<b>${_nearLbl || SCALE[st.scale] || ''}</b> · ${esc(where)}` +
-        (st.mode === 'orbit' && fi ? `<br>${esc(fi.name)}: ${esc(st.distanceText)}` : st.mode === 'flight' ? `<br>Flying… ${speedTxt(st.speedLyps)}` : st.mode === 'free' ? `<br>Free flight ${speedTxt(st.speedLyps)}` : '');
+      let _al=null;try{_al=SE2.getAltitude&&SE2.getAltitude()}catch(e){}const _nearLbl=_al&&_al.kind!=='star'&&isFinite(_al.meters)?(_al.kind==='gas'?(_al.meters<100000?'Cloud tops':null):_al.surface||_al.meters<2000?'Surface':_al.meters<100000?(_al.atmosphere===false?'Low orbit':'Atmosphere'):null):null;
+      const _landed=_al&&_al.kind==='rocky'&&_al.meters<25&&st.mode==='free';
+      hud.innerHTML = `<b>${_nearLbl || SCALE[st.scale] || ''}</b> · ${esc(_nearLbl&&_al.name?_al.name:where)}` + (_landed ? `<br>Landed · walk or hover with the controls` :
+        (st.mode === 'orbit' && fi ? `<br>${esc(fi.name)}: ${esc(st.distanceText)}` : st.mode === 'flight' ? `<br>Flying… ${speedTxt(st.speedLyps)}` : st.mode === 'free' ? `<br>Free flight ${speedTxt(st.speedLyps)}` : ''));
     }
     const L = SE2.getLabels();
     while (pool.length < L.length) { const d = document.createElement('div'); d.className = 'lab'; d.onclick = () => { sfx('ui_tap.mp3'); SE2.select(d.dataset.id); }; labelsEl.appendChild(d); pool.push(d); }
@@ -181,7 +182,7 @@ const target=m==null||m>20000?0:0.5*Math.pow(1-Math.max(m,0)/20000,1.5);v+=(targ
 (function x2fd(){if(!window.SE2||!document.getElementById('x2-hud'))return setTimeout(x2fd,200);
 const H=document.createElement('div');H.id='x2-flyhint';document.getElementById('x2-hud').parentNode.appendChild(H);let last='';
 setInterval(()=>{let a=null;try{a=SE2.getAltitude&&SE2.getAltitude()}catch(e){}
-const star=a&&(a.kind==='star'||a.star===true);const show=a&&!star&&!a.surface&&a.meters>=50&&a.meters<2e7&&a.name;if(!show){H.style.display='none';last='';return;}
+const star=a&&(a.kind==='star'||a.star===true);const show=a&&!star&&!a.surface&&a.meters>=(a.kind==='gas'?3000:50)&&a.meters<2e7&&a.name&&!(SE2.isFlyingDown&&SE2.isFlyingDown());if(!show){H.style.display='none';last='';return;}
 const nm=a.name.replace(/[<>&]/g,''),can=!!SE2.flyDown,k=nm+can;H.style.display='block';
 if(k!==last){last=k;H.innerHTML=can?`<button>⬇ ${a.gas||a.kind==='gas'?'Dive into the clouds of':'Fly down to'} ${nm}</button>`:`⬇ Keep flying toward ${nm} to reach the surface`;
 const b=H.querySelector('button');if(b)b.onclick=()=>{try{window.SE_SFX&&SE_SFX('fly.mp3')}catch(e){}SE2.flyDown(a.id||nm)};}},250);})();

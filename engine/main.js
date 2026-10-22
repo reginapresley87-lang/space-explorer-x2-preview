@@ -1,7 +1,7 @@
 // Space Explorer X 2 – engine. Seamless multi-scale renderer + navigation; exposes window.SE2 (see README.md).
 import * as THREE from '../scene/vendor/three.module.min.js?v=20261014b';
 import { createJoystick } from '../scene/joystick.js?v=20261014b';
-import { createSurface } from '../scene/surface.js?v=20261022b';
+import { createSurface } from '../scene/surface.js?v=20261022c';
 import { hash, rng, clamp, TAU, D2R, fmtDist, starName, smooth } from './util.js?v=20261014b';
 import { REAL_GALAXIES, galaxyById, galaxyTypeLabel, densityAt, SOL_GPOS, LOCAL_VOID } from './universe.js?v=20261014b';
 import { StarField, REAL_STARS, starById, starName_, sectorStars, LEVELS, CLASS_INFO } from './stars.js?v=20261014b';
@@ -346,7 +346,7 @@ export async function init(opts = {}) {
     const out = { alt: D - surfR, D, surfR, bw, qB, dirSys: v.divideScalar(Dsu), mPerSu: terr.mPerSu, R: terr.R };
     tiCache = { f: frameNo, x: p.x, y: p.y, z: p.z, v: out }; return out;
   }
-  const clearance = () => 1.7 + (terr ? Math.min((terr.lastSp || terr.spacing) * 0.1, 25) : 0);   // eye height + margin for the drawn tile's coarseness under us
+  const clearance = () => 1.7 + (terr ? Math.min((terr.lastSp || terr.spacing) * 0.02, 1.5) : 0);   // eye height + small margin (the ground height already comes from the drawn mesh itself)   // eye height + margin for the drawn tile's coarseness under us
   function pushOutOfGround(ti) {   // returns true if the camera had to be lifted
     if (!ti) return false; const c = clearance(); if (ti.alt >= c) return false;
     cam.loc.p.copy(ti.bw).addScaledVector(ti.dirSys, (ti.surfR + c) / ti.mPerSu); tiCache = null; return true;
@@ -565,7 +565,7 @@ export async function init(opts = {}) {
         dir.applyAxisAngle(ax, Math.min(Math.acos(clamp(c, -1, 1)) - Math.acos(0.85), 0.9 * dt)).normalize(); }
     }
     const surfR = onTerr ? ti.surfR : Rm * gasDeck(e.b), alt = Dsu * mPerSu - surfR;
-    const target = !e.b.landable ? 1200 : onTerr && terr.ready ? clearance() + 2.5 : 2000;     // metres above the ground (just over the collision clearance) / cloud deck
+    const target = !e.b.landable ? 1200 : onTerr && terr.ready ? clearance() + 0.3 : 2000;     // metres above the ground (just over the collision clearance) / cloud deck
     // altitude decays exponentially (fast high up, gentle near the ground: the terrain detail has time to stream in)
     // low down: quicker decay plus a minimum sink rate (~6 m/s) that only eases off over the last few metres, so touchdown never creeps
     const rate = alt > 2e5 ? 1.1 : alt > 2000 ? 0.8 : 1.0, gap = alt - target;
@@ -828,6 +828,7 @@ export async function init(opts = {}) {
   }
   function labels() {
     if (active === 'surface' || mode === 'landing' || mode === 'takeoff') return [];
+    if (gasState && gasState.h < GAS_LAYERS.haze) return [];   // inside a giant's haze: far stars / galaxies can't be seen through it
     const out = [], taken = [];
     let nStar = 0;
     const cs = candidates().filter(c => c.kind === 'galaxy' ? (c.ang > 0.01 || c.pri > 1.5) : c.star ? (c.star.real ? c.mag < 6 : c.mag < 0.5 && nStar++ < 5) : c.kind !== 'moon' || c.px > 3)
