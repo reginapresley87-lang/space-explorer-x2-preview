@@ -1,13 +1,14 @@
 // Space Explorer X 2 – engine. Seamless multi-scale renderer + navigation; exposes window.SE2 (see README.md).
 import * as THREE from '../scene/vendor/three.module.min.js?v=20261014b';
 import { createJoystick } from '../scene/joystick.js?v=20261014b';
-import { createSurface } from '../scene/surface.js?v=20261022i';
+import { createSurface } from '../scene/surface.js?v=20261022j';
 import { hash, rng, clamp, TAU, D2R, fmtDist, starName, smooth } from './util.js?v=20261014b';
 import { REAL_GALAXIES, galaxyById, galaxyTypeLabel, densityAt, SOL_GPOS, LOCAL_VOID } from './universe.js?v=20261014b';
 import { StarField, REAL_STARS, starById, starName_, sectorStars, LEVELS, CLASS_INFO } from './stars.js?v=20261014b';
 import { systemFor, LY_PER_SU as K, bodyPosition, TYPE_LABEL, REARTH_KM, RSUN_KM, setRealScale, isRealScale, AU_SU } from './sysgen.js?v=20261014b';
 import { createSystemView, texQueue, uploadQueue, atmoParams, SPIN, QDEF } from './sysview.js?v=20261014b';
-import { createTerrain, TERRAIN_LAYER } from './terrain.js?v=20261022i';
+import { createTerrain, TERRAIN_LAYER } from './terrain.js?v=20261022j';
+import { createBuildings, llDir } from './buildings.js?v=20261022j';
 import { createGasInterior, GAS_LAYERS, GAS_FADE } from './gasdeck.js?v=20261014b';
 import { UniverseView, createGalaxyCloud, createSkyBox, createGalaxySky } from './views.js?v=20261014b';
 import { createPost } from './post.js?v=20261014b';
@@ -346,7 +347,7 @@ export async function init(opts = {}) {
     const out = { alt: D - surfR, D, surfR, bw, qB, dirSys: v.divideScalar(Dsu), mPerSu: terr.mPerSu, R: terr.R };
     tiCache = { f: frameNo, x: p.x, y: p.y, z: p.z, v: out }; return out;
   }
-  let hoverLast = 0;
+  let hoverLast = 0; const osmB = createBuildings(TERRAIN_LAYER);
   let grounded = null;   // THE landed state (single source of truth): { b } while standing on a rocky world's ground in free flight
   const clearance = () => 1.7 + (terr ? Math.min((terr.lastSp || terr.spacing) * 0.02, 1.5) : 0);   // eye height + small margin (the ground height already comes from the drawn mesh itself)   // eye height + margin for the drawn tile's coarseness under us
   function pushOutOfGround(ti) {   // returns true if the camera had to be lifted
@@ -566,7 +567,8 @@ export async function init(opts = {}) {
     const Rm = e.b.radiusKm * 1000, mPerSu = Rm / e.b.radiusSu;
     // while still high, swing round to the day side so we arrive in daylight
     const star = activeView && activeView.items.find(x => x.star);
-    if (star && Dsu * mPerSu - Rm > 30e3) {
+    if (fd.ll) dir.copy(llDir(fd.ll[0], fd.ll[1])).applyQuaternion(bodyRot(s, e.b, simDays));   // landAt: straight down onto that latitude / longitude
+    else if (star && Dsu * mPerSu - Rm > 30e3) {
       // aim ahead of the sun by the spin still to come during the rest of the descent, so we touch down near local noon
       const h0 = Dsu * mPerSu - Rm, tLeft = (h0 > 2e5 ? Math.log(h0 / 2e5) / 1.1 : 0) + Math.log(Math.min(h0, 2e5) / 2000) / 0.8 + Math.log(2000 / 5) / 1.0;
       let dS = bodySpin(s, e.b, simDays + 0.01) - bodySpin(s, e.b, simDays); if (dS > Math.PI) dS -= 2 * Math.PI; if (dS < -Math.PI) dS += 2 * Math.PI;
@@ -885,12 +887,13 @@ export async function init(opts = {}) {
     for (const it of activeView.items) { if (it.star || !it.b.landable) continue; const d = camSys.distanceTo(it.world) / it.r; if (d < bd) { bd = d; best = it; } }
     if (terr && (terr.view !== activeView || !activeView.items.includes(terr.it) || camSys.distanceTo(terr.it.world) / terr.it.r > 10 || (best && best !== terr.it && camSys.distanceTo(terr.it.world) / terr.it.r > bd * 1.5))) { terr.dispose(); terr = null; attach = null; tiCache = null; }
     if (!terr && best) { terr = createTerrain(best, { quality: qName, octMax: (QDEF[qName] || QDEF.medium).OCT_MAX }); if (terr) { terr.view = activeView; terr.sys = s; } }
-    if (!terr) return;
+    if (!terr) { osmB.update(null); return; }
     const it = terr.it;
     terr.group.rotation.y = it.mesh.rotation.y;
     const qB = it.tilt.quaternion.clone().multiply(it.mesh.quaternion).invert();
     const v = V().copy(camSys).sub(it.world).applyQuaternion(qB).multiplyScalar(terr.mPerSu);
     terr.update(v.x, v.y, v.z);
+    { const st = activeView.items.find(x => x.star); osmB.update(terr, v.x, v.y, v.z, st ? V().copy(st.world).sub(it.world).normalize().dot(V().copy(camSys).sub(it.world).normalize()) : 1); }   // + sun height for the building shade
     const dR = camSys.distanceTo(it.world) / it.r, show = terr.ready && dR < 6;
     it.mesh.visible = !show; terr.group.visible = show;
     const map = it.mesh.material.uniforms && it.mesh.material.uniforms.uMap && it.mesh.material.uniforms.uMap.value;
@@ -1269,7 +1272,7 @@ export async function init(opts = {}) {
       if (mode === 'landing' || mode === 'takeoff') return;
       fly.input.set(...v); if (fly.input.lengthSq() > 0) { fd = null; enterFree(); }
     },
-    flyDown: id => flyDownStart(id ?? (selected && selected.id) ?? (focus && focus.id)), cancelFlyDown() { fd = null; }, isFlyingDown: () => !!fd, isLanded: () => mode === 'free' && !!grounded && !fd,
+    flyDown: id => flyDownStart(id ?? (selected && selected.id) ?? (focus && focus.id)), cancelFlyDown() { fd = null; }, isFlyingDown: () => !!fd, landAt(lat, lon) { if (!flyDownStart('sol#earth')) return false; fd.ll = [+lat, +lon]; return true; }, getBuildings: () => osmB.count, isLanded: () => mode === 'free' && !!grounded && !fd,
     setBoost(k) { k = Number(k); boost = clamp(isFinite(k) && k > 0 ? k : 1, 1, 1e5);
       const el = typeof document !== 'undefined' && document.getElementById('x2-boost');   // keep the ⚡ button label in step with API changes
       if (el) { el.textContent = '⚡' + (boost >= 1000 ? +(boost / 1000).toPrecision(3) + 'k' : +boost.toPrecision(3)) + '×'; el.classList.toggle('on', boost > 1); }
