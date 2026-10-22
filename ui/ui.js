@@ -30,6 +30,10 @@ export function initUI(SE2, opts = {}) {
   const card = $('#x2-card'), hud = $('#x2-hud'), results = $('#x2-results'), input = $('#x2-search'), panel = $('#x2-panel'), labelsEl = $('#x2-labels'), toast = $('#x2-toast');
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   let toastT = 0; const say = msg => { toast.textContent = msg; toast.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => toast.style.opacity = 0, 2200); };
+  // night-side toast (once per landing spot while it is night)
+  (()=>{let was=false,shown=null;setInterval(()=>{let l=false,e=null;try{l=!!(SE2.isLanded&&SE2.isLanded());e=SE2.getSunElevation?SE2.getSunElevation():null;}catch(_){}
+  if(l&&!was&&e!=null&&isFinite(e)&&e<-6){const k=(SE2.getAltitude&&SE2.getAltitude()||{}).name;if(k!==shown){shown=k;say('🌙 Night side, the sun is below the horizon');}}
+  if(!l)shown=was&&!l?null:shown;was=l;},500);})();
   const go = (id, o) => { sfx('fly.mp3'); hideResults(); return SE2.goTo(id, o); };
 
   // ---------- info card ----------

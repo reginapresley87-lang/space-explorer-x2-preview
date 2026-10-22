@@ -14,7 +14,7 @@
 <link rel="canonical" href="https://reginapresley87-lang.github.io/space-explorer-x2-preview/">
 <link rel="icon" href="data:,">
 <title>Space Explorer X 2</title>
-<link rel="stylesheet" href="ui/ui.css?v=20261022j">
+<link rel="stylesheet" href="ui/ui.css?v=20261022k">
 <style>
   html,body{margin:0;height:100%;background:#000;overflow:hidden;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
   #x2-loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:#9cf;font:16px system-ui;z-index:20;pointer-events:none;transition:opacity .6s}
@@ -29,7 +29,7 @@
 const q = new URLSearchParams(location.search);
 let SE2;
 try {
-  const { init } = await import('./engine/main.js?v=20261022j');
+  const { init } = await import('./engine/main.js?v=20261022k');
   SE2 = await init();
 } catch (e) {
   console.error('[index] engine failed', e);
@@ -39,7 +39,7 @@ try {
 const loading = document.getElementById('x2-loading');
 loading.style.opacity = 0; setTimeout(() => loading.remove(), 700);
 if (!q.has('nojoy')) SE2.enableJoystick(true);
-if (!q.has('noui')) { const { initUI } = await import('./ui/ui.js?v=20261022j'); initUI(SE2, { autostart: q.has('autostart') }); }
+if (!q.has('noui')) { const { initUI } = await import('./ui/ui.js?v=20261022k'); initUI(SE2, { autostart: q.has('autostart') }); }
 </script>
 </body>
 </html>

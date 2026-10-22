@@ -1,14 +1,14 @@
 // Space Explorer X 2 – engine. Seamless multi-scale renderer + navigation; exposes window.SE2 (see README.md).
 import * as THREE from '../scene/vendor/three.module.min.js?v=20261014b';
 import { createJoystick } from '../scene/joystick.js?v=20261014b';
-import { createSurface } from '../scene/surface.js?v=20261022j';
+import { createSurface } from '../scene/surface.js?v=20261022k';
 import { hash, rng, clamp, TAU, D2R, fmtDist, starName, smooth } from './util.js?v=20261014b';
 import { REAL_GALAXIES, galaxyById, galaxyTypeLabel, densityAt, SOL_GPOS, LOCAL_VOID } from './universe.js?v=20261014b';
 import { StarField, REAL_STARS, starById, starName_, sectorStars, LEVELS, CLASS_INFO } from './stars.js?v=20261014b';
 import { systemFor, LY_PER_SU as K, bodyPosition, TYPE_LABEL, REARTH_KM, RSUN_KM, setRealScale, isRealScale, AU_SU } from './sysgen.js?v=20261014b';
 import { createSystemView, texQueue, uploadQueue, atmoParams, SPIN, QDEF } from './sysview.js?v=20261014b';
-import { createTerrain, TERRAIN_LAYER } from './terrain.js?v=20261022j';
-import { createBuildings, llDir } from './buildings.js?v=20261022j';
+import { createTerrain, TERRAIN_LAYER } from './terrain.js?v=20261022k';
+import { createBuildings, llDir } from './buildings.js?v=20261022k';
 import { createGasInterior, GAS_LAYERS, GAS_FADE } from './gasdeck.js?v=20261014b';
 import { UniverseView, createGalaxyCloud, createSkyBox, createGalaxySky } from './views.js?v=20261014b';
 import { createPost } from './post.js?v=20261014b';
@@ -1272,7 +1272,13 @@ export async function init(opts = {}) {
       if (mode === 'landing' || mode === 'takeoff') return;
       fly.input.set(...v); if (fly.input.lengthSq() > 0) { fd = null; enterFree(); }
     },
-    flyDown: id => flyDownStart(id ?? (selected && selected.id) ?? (focus && focus.id)), cancelFlyDown() { fd = null; }, isFlyingDown: () => !!fd, landAt(lat, lon) { if (!flyDownStart('sol#earth')) return false; fd.ll = [+lat, +lon]; return true; }, getBuildings: () => osmB.count, isLanded: () => mode === 'free' && !!grounded && !fd,
+    flyDown: id => flyDownStart(id ?? (selected && selected.id) ?? (focus && focus.id)), cancelFlyDown() { fd = null; }, isFlyingDown: () => !!fd, landAt(lat, lon) { if (!flyDownStart('sol#earth')) return false; fd.ll = [+lat, +lon]; return true; }, getBuildings: () => osmB.count,
+    getSunElevation() {   // main sun's elevation (degrees) at the ground point below the camera; null when not near a surface
+      if (active === 'surface') { const v = surf.spec && surf.spec.sunElev; return v ?? null; }
+      const ti = terrInfo(); if (!ti || ti.alt > 2e4 || !activeView) return null;
+      const st = activeView.items.find(x => x.star);   // the main sun (the shaders' first star) if (!st) return null;
+      const w = terr.it.world, up = V().copy(camSys).sub(w).normalize();
+      return Math.asin(clamp(up.dot(V().copy(st.world).sub(w).normalize()), -1, 1)) / D2R; }, isLanded: () => mode === 'free' && !!grounded && !fd,
     setBoost(k) { k = Number(k); boost = clamp(isFinite(k) && k > 0 ? k : 1, 1, 1e5);
       const el = typeof document !== 'undefined' && document.getElementById('x2-boost');   // keep the ⚡ button label in step with API changes
       if (el) { el.textContent = '⚡' + (boost >= 1000 ? +(boost / 1000).toPrecision(3) + 'k' : +boost.toPrecision(3)) + '×'; el.classList.toggle('on', boost > 1); }
