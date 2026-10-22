@@ -8,7 +8,7 @@ const BUNDLE = { sydney: [-33.8568, 151.2153], melbourne: [-37.8183, 144.9671], 
 const bundled = new Map();   // name -> list | 'loading' | 'failed'
 function loadBundle(n) {
   bundled.set(n, 'loading');
-  fetch(new URL('../data/buildings/' + n + '.json?v=20261022m', import.meta.url)).then(r => r.ok ? r.json() : null).then(j => {
+  fetch(new URL('../data/buildings/' + n + '.json?v=20261023a', import.meta.url)).then(r => r.ok ? r.json() : null).then(j => {
     if (!j) { bundled.set(n, 'failed'); return; }
     const [la, lo] = j.c, out = [];
     for (const a of j.b) { const p = []; let y = 0, x = 0; for (let i = 1; i + 1 < a.length; i += 2) { y += a[i]; x += a[i + 1]; p.push(la + y * 1e-5, lo + x * 1e-5); } out.push([a[0], p]); if (out.length >= MAXB) break; }
@@ -32,6 +32,8 @@ async function fetchCell(lat, lon) {
   }
   return null;
 }
+// ground radius from the exact height field (what the fine terrain tiles converge to), not the coarse tile mesh in view at build time
+function gR(terr, d) { const h = terr.heightAt(d.x, d.y, d.z); return terr.R + (terr.P && terr.P.ocean ? Math.max(h, 0) : h); }
 export function createBuildings(layer) {
   let mesh = null, meshKey = '', want = '', wantT = 0, busy = false, credit = null;
   const failT = new Map(), mat = new THREE.MeshBasicMaterial({ vertexColors: true });
@@ -43,14 +45,14 @@ export function createBuildings(layer) {
   function drop() { if (mesh) { mesh.geometry.dispose(); mesh.removeFromParent(); mesh = null; meshKey = ''; } }
   function build(terr, key, list, clat, clon) {
     drop(); if (!list || !list.length) return;
-    const up = llDir(clat, clon), C = up.clone().multiplyScalar(terr.surfaceR(up.x, up.y, up.z));
+    const up = llDir(clat, clon), C = up.clone().multiplyScalar(gR(terr, up));
     const pos = [], col = [], v = new THREE.Vector3(), kx = Math.cos(clat * D);
     const push = (p, s) => { pos.push(p.x - C.x, p.y - C.y, p.z - C.z); col.push(s * .86, s * .84, s * .8); };
     for (const [h, ll] of list) {
       const n = ll.length / 2 - 1; if (n < 3) continue;   // closed ring: last node = first
       const dirs = [], pts2 = []; let rmin = Infinity, rmax = 0;
-      for (let i = 0; i < n; i++) { const d = llDir(ll[i * 2], ll[i * 2 + 1]); const r = terr.surfaceR(d.x, d.y, d.z); rmin = Math.min(rmin, r); rmax = Math.max(rmax, r); dirs.push(d); pts2.push(new THREE.Vector2(ll[i * 2 + 1] * kx, ll[i * 2])); }
-      const r0 = rmin - 1.5, r1 = rmax + h;
+      for (let i = 0; i < n; i++) { const d = llDir(ll[i * 2], ll[i * 2 + 1]); const r = gR(terr, d); rmin = Math.min(rmin, r); rmax = Math.max(rmax, r); dirs.push(d); pts2.push(new THREE.Vector2(ll[i * 2 + 1] * kx, ll[i * 2])); }
+      const r0 = rmin - 2, r1 = rmax + h;   // base a little under the lowest corner, so no gap on sloping ground
       for (let i = 0; i < n; i++) { const a = dirs[i], b = dirs[(i + 1) % n], pa = pts2[i], pb = pts2[(i + 1) % n];
         const s = .5 + .35 * Math.abs(Math.cos(Math.atan2(pb.y - pa.y, pb.x - pa.x) + .6));
         const a0 = v.copy(a).multiplyScalar(r0).clone(), a1 = a.clone().multiplyScalar(r1), b0 = b.clone().multiplyScalar(r0), b1 = b.clone().multiplyScalar(r1);

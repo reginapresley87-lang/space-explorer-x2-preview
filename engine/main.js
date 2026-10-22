@@ -1,14 +1,14 @@
 // Space Explorer X 2 – engine. Seamless multi-scale renderer + navigation; exposes window.SE2 (see README.md).
 import * as THREE from '../scene/vendor/three.module.min.js?v=20261014b';
 import { createJoystick } from '../scene/joystick.js?v=20261014b';
-import { createSurface } from '../scene/surface.js?v=20261022m';
+import { createSurface } from '../scene/surface.js?v=20261023a';
 import { hash, rng, clamp, TAU, D2R, fmtDist, starName, smooth } from './util.js?v=20261014b';
 import { REAL_GALAXIES, galaxyById, galaxyTypeLabel, densityAt, SOL_GPOS, LOCAL_VOID } from './universe.js?v=20261014b';
 import { StarField, REAL_STARS, starById, starName_, sectorStars, LEVELS, CLASS_INFO } from './stars.js?v=20261014b';
 import { systemFor, LY_PER_SU as K, bodyPosition, TYPE_LABEL, REARTH_KM, RSUN_KM, setRealScale, isRealScale, AU_SU } from './sysgen.js?v=20261014b';
 import { createSystemView, texQueue, uploadQueue, atmoParams, SPIN, QDEF } from './sysview.js?v=20261014b';
-import { createTerrain, TERRAIN_LAYER } from './terrain.js?v=20261022m';
-import { createBuildings, llDir } from './buildings.js?v=20261022m';
+import { createTerrain, TERRAIN_LAYER } from './terrain.js?v=20261023a';
+import { createBuildings, llDir } from './buildings.js?v=20261023a';
 import { createGasInterior, GAS_LAYERS, GAS_FADE } from './gasdeck.js?v=20261014b';
 import { UniverseView, createGalaxyCloud, createSkyBox, createGalaxySky } from './views.js?v=20261014b';
 import { createPost } from './post.js?v=20261014b';
@@ -577,11 +577,12 @@ export async function init(opts = {}) {
       if (c < 0.85) { const ax = V().crossVectors(dir, sd); if (ax.lengthSq() < 1e-10) ax.set(0, 1, 0).cross(dir); ax.normalize();
         dir.applyAxisAngle(ax, Math.min(Math.acos(clamp(c, -1, 1)) - Math.acos(0.85), 0.9 * dt)).normalize(); }
     }
-    const surfR = onTerr ? ti.surfR : Rm * gasDeck(e.b), alt = Dsu * mPerSu - surfR;
+    const surfR = onTerr ? ti.surfR : Rm * gasDeck(e.b); let alt = Dsu * mPerSu - surfR;
+    if (fd.ll && !fd.snap) { fd.snap = 1; alt = Math.min(alt, 3000); }   // landAt (test helper): start right above the spot instead of a long descent
     const target = !e.b.landable ? 1200 : onTerr && terr.ready ? clearance() + 0.3 : 2000;     // metres above the ground (just over the collision clearance) / cloud deck
     // altitude decays exponentially (fast high up, gentle near the ground: the terrain detail has time to stream in)
     // low down: quicker decay plus a minimum sink rate (~6 m/s) that only eases off over the last few metres, so touchdown never creeps
-    const rate = alt > 2e5 ? 1.1 : alt > 2000 ? 0.8 : 1.0, gap = alt - target;
+    const rate = (alt > 2e5 ? 1.1 : alt > 2000 ? 0.8 : 1.0) * (fd.ll ? 2 : 1), gap = alt - target;
     const na = target + gap * Math.exp(-rate * dt) - (gap > 0 ? Math.min(gap, 6 * smooth(0, 6, gap) * dt + 0.3 * dt) : 0);
     cam.loc.p.copy(bw).addScaledVector(dir, (surfR + na) / mPerSu); tiCache = null;
     // attitude: look down while high, turn to the horizon near the ground (roll levelled by the free-flight code)

@@ -124,3 +124,16 @@ body:has(#x2-title) #x2-ui,body:has(#x2-title) #se-joy{visibility:hidden}
 #x2-credits{min-height:44px;min-width:88px;padding:0 14px;bottom:max(0px,env(safe-area-inset-bottom))}
 #x2-flyhint{padding:5px 6px 5px 14px}
 #x2-flyhint button{min-height:44px;padding:0 18px}
+/* iPhone fixes (round 13) */
+@media (pointer:coarse){
+ .x2b,#x2-side .x2b,#x2-bmbtn{min-width:44px!important;height:44px!important}
+ #x2-q{font-size:13px!important;font-weight:600}
+ #se-joy .pad,#se-joy .ud{transform:translateY(calc(-1 * max(16px,env(safe-area-inset-bottom))))}
+ #x2-side{display:grid!important;grid-auto-flow:column;grid-template-rows:repeat(5,44px);grid-auto-columns:44px;direction:rtl;gap:4px;padding:4px;max-height:none;flex-wrap:nowrap;align-content:start}
+ #x2-side>*{direction:ltr}
+}
+@media (max-width:600px){#x2-panel{top:calc(max(8px,env(safe-area-inset-top)) + 100px);max-height:45vh}}
+@media (pointer:coarse) and (max-height:500px){
+ #x2-side{right:calc(max(8px,env(safe-area-inset-right)) + 80px)}
+ #x2-panel{right:auto;width:min(420px,52vw);max-height:calc(100vh - 140px)}
+}

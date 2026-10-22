@@ -33,6 +33,7 @@ export function initUI(SE2, opts = {}) {
   // night-side toast: once per landing (touchdown in the dark, or sunset while on the ground); resets on takeoff
   (()=>{let done=false;setInterval(()=>{let l=false,e=null;try{l=!!(SE2.isLanded&&SE2.isLanded());e=SE2.getSunElevation?SE2.getSunElevation():null;}catch(_){}
   if(!l){done=false;return;}if(!done&&e!=null&&isFinite(e)&&e<-6){done=true;say('🌙 Night side, the sun is below the horizon');}},500);})();
+  if (SE2.goTo && !SE2.goTo._x2p) { const _g = SE2.goTo; SE2.goTo = function () { panel.style.display = 'none'; return _g.apply(this, arguments); }; SE2.goTo._x2p = 1; }
   const go = (id, o) => { sfx('fly.mp3'); hideResults(); return SE2.goTo(id, o); };
 
   // ---------- info card ----------
