@@ -1,7 +1,7 @@
 // Space Explorer X 2 – engine. Seamless multi-scale renderer + navigation; exposes window.SE2 (see README.md).
 import * as THREE from '../scene/vendor/three.module.min.js?v=20261014b';
 import { createJoystick } from '../scene/joystick.js?v=20261014b';
-import { createSurface } from '../scene/surface.js?v=20261022a';
+import { createSurface } from '../scene/surface.js?v=20261022b';
 import { hash, rng, clamp, TAU, D2R, fmtDist, starName, smooth } from './util.js?v=20261014b';
 import { REAL_GALAXIES, galaxyById, galaxyTypeLabel, densityAt, SOL_GPOS, LOCAL_VOID } from './universe.js?v=20261014b';
 import { StarField, REAL_STARS, starById, starName_, sectorStars, LEVELS, CLASS_INFO } from './stars.js?v=20261014b';
@@ -543,6 +543,8 @@ export async function init(opts = {}) {
   }
   function flyDownStep(dt) {
     const e = fd.e, s = e.sys; if (cam.loc.sys !== s) { fd = null; return; }
+    // descent clock: real elapsed time (up to 0.4 s), so slow devices whose frames hit the 0.1 s cap don't crawl down in slow motion
+    const nowT = performance.now(); if (fd.last) dt = clamp((nowT - fd.last) / 1000, dt, 0.4); fd.last = nowT;
     fd.t += dt;
     const ti = terrInfo(), onTerr = ti && terr.it.b === e.b;
     const bw = onTerr ? ti.bw : bodyPosition(s, e.b, simDays, V());
@@ -555,7 +557,7 @@ export async function init(opts = {}) {
     const star = activeView && activeView.items.find(x => x.star);
     if (star && Dsu * mPerSu - Rm > 30e3) {
       // aim ahead of the sun by the spin still to come during the rest of the descent, so we touch down near local noon
-      const h0 = Dsu * mPerSu - Rm, tLeft = (h0 > 2e5 ? Math.log(h0 / 2e5) / 1.1 : 0) + Math.log(Math.min(h0, 2e5) / 2000) / 0.8 + Math.log(2000 / 5) / 0.6;
+      const h0 = Dsu * mPerSu - Rm, tLeft = (h0 > 2e5 ? Math.log(h0 / 2e5) / 1.1 : 0) + Math.log(Math.min(h0, 2e5) / 2000) / 0.8 + Math.log(2000 / 5) / 1.0;
       let dS = bodySpin(s, e.b, simDays + 0.01) - bodySpin(s, e.b, simDays); if (dS > Math.PI) dS -= 2 * Math.PI; if (dS < -Math.PI) dS += 2 * Math.PI;
       const lead = clamp(dS / 0.01 * timeSpeed * FD_TIME * tLeft, -2.6, 2.6), axis = Y.clone().applyQuaternion(bodyRot(s, e.b, simDays));
       const sd = V().copy(star.world).sub(bw).normalize().applyAxisAngle(axis, -lead), c = dir.dot(sd); fd.dbg = { c, lead, tLeft };
@@ -565,8 +567,9 @@ export async function init(opts = {}) {
     const surfR = onTerr ? ti.surfR : Rm * gasDeck(e.b), alt = Dsu * mPerSu - surfR;
     const target = !e.b.landable ? 1200 : onTerr && terr.ready ? clearance() + 2.5 : 2000;     // metres above the ground (just over the collision clearance) / cloud deck
     // altitude decays exponentially (fast high up, gentle near the ground: the terrain detail has time to stream in)
-    const rate = alt > 2e5 ? 1.1 : alt > 2000 ? 0.8 : 0.6;
-    const na = target + (alt - target) * Math.exp(-rate * dt) - (alt > target ? Math.min(alt - target, 0.4 * dt) : 0);
+    // low down: quicker decay plus a minimum sink rate (~6 m/s) that only eases off over the last few metres, so touchdown never creeps
+    const rate = alt > 2e5 ? 1.1 : alt > 2000 ? 0.8 : 1.0, gap = alt - target;
+    const na = target + gap * Math.exp(-rate * dt) - (gap > 0 ? Math.min(gap, 6 * smooth(0, 6, gap) * dt + 0.3 * dt) : 0);
     cam.loc.p.copy(bw).addScaledVector(dir, (surfR + na) / mPerSu); tiCache = null;
     // attitude: look down while high, turn to the horizon near the ground (roll levelled by the free-flight code)
     const U = dir.clone().applyQuaternion(s.uq), f = V(0, 0, -1).applyQuaternion(cam.q);
@@ -579,7 +582,7 @@ export async function init(opts = {}) {
     // arrived: at the target height, or no longer getting lower (the ground clearance holds us up) for ~1.5 s, or a generous timeout
     if (na < (fd.best ?? Infinity) - 0.25) { fd.best = na; fd.still = 0; } else fd.still = (fd.still || 0) + dt;
     const settled = !e.b.landable || (onTerr && terr.ready);   // rocky: only once the real ground is under us
-    const arrived = settled && (Math.abs(na - target) < Math.max(1, target * 0.15) || (alt < 3000 && fd.still > 1.5));
+    const arrived = settled && (Math.abs(na - target) < Math.max(1.5, target * 0.2) || (alt < 3000 && fd.still > 1.0));
     if (arrived || fd.t > 120) { const done = e; fd = null; ev('se2:flydown-done', { id: done.id, name: done.name, landed: !!done.b.landable && arrived, deck: !done.b.landable && arrived }); }
   }
   function enterFree() {

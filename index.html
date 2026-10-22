@@ -29,7 +29,7 @@
 const q = new URLSearchParams(location.search);
 let SE2;
 try {
-  const { init } = await import('./engine/main.js?v=20261022a');
+  const { init } = await import('./engine/main.js?v=20261022b');
   SE2 = await init();
 } catch (e) {
   console.error('[index] engine failed', e);
