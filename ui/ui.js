@@ -184,7 +184,7 @@ const H=document.createElement('div');H.id='x2-flyhint';document.getElementById(
 setInterval(()=>{let a=null;try{a=SE2.getAltitude&&SE2.getAltitude()}catch(e){}
 const star=a&&(a.kind==='star'||a.star===true);const show=a&&!star&&!a.surface&&!(SE2.isLanded&&SE2.isLanded())&&a.meters>=(a.kind==='gas'?3000:50)&&a.meters<2e7&&a.name&&!(SE2.isFlyingDown&&SE2.isFlyingDown());if(!show){H.style.display='none';if(last){H.innerHTML='';last='';}return;}
 const nm=a.name.replace(/[<>&]/g,''),can=!!SE2.flyDown,k=nm+can+(a.kind||'');H.style.display='block';
-if(k!==last){last=k;H.innerHTML=can?`<button>⬇ ${a.gas||a.kind==='gas'?'Dive into the clouds of':'Fly down to'} ${nm}</button>`:`⬇ Keep flying toward ${nm} to reach the surface`;
+if(k!==last||!H.textContent.trim()){last=k;H.innerHTML=can?`<button>⬇ ${a.gas||a.kind==='gas'?'Dive into the clouds of':'Fly down to'} ${nm}</button>`:`⬇ Keep flying toward ${nm} to reach the surface`;
 const b=H.querySelector('button');if(b)b.onclick=()=>{try{window.SE_SFX&&SE_SFX('fly.mp3')}catch(e){}SE2.flyDown(a.id||nm)};}},250);})();
 // Optional support button: hidden until SUPPORT_URL is set to the Ko-fi link. The game stays free either way.
 (function sup(){const SUPPORT_URL='';if(!SUPPORT_URL)return;const t=document.querySelector('#x2-title,#se-title');if(!t)return setTimeout(sup,200);

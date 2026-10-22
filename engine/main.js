@@ -1,7 +1,7 @@
 // Space Explorer X 2 – engine. Seamless multi-scale renderer + navigation; exposes window.SE2 (see README.md).
 import * as THREE from '../scene/vendor/three.module.min.js?v=20261014b';
 import { createJoystick } from '../scene/joystick.js?v=20261014b';
-import { createSurface } from '../scene/surface.js?v=20261022e';
+import { createSurface } from '../scene/surface.js?v=20261022f';
 import { hash, rng, clamp, TAU, D2R, fmtDist, starName, smooth } from './util.js?v=20261014b';
 import { REAL_GALAXIES, galaxyById, galaxyTypeLabel, densityAt, SOL_GPOS, LOCAL_VOID } from './universe.js?v=20261014b';
 import { StarField, REAL_STARS, starById, starName_, sectorStars, LEVELS, CLASS_INFO } from './stars.js?v=20261014b';
@@ -431,7 +431,8 @@ export async function init(opts = {}) {
       }
       if (fd) flyDownStep(dt);
       let near = nearestDistLy();
-      const ti0 = terrInfo(); if (ti0 && ti0.alt < 2e4) near = Math.max(near, 5 / ti0.mPerSu * K);   // never slower than ~5 m/s (x boost) near the ground
+      const ti0 = terrInfo(); if (ti0 && ti0.alt < 2e4) near = Math.max(near, 5 / ti0.mPerSu * K);
+      if (ti0 && ti0.alt < 2e4 && fly.input.y > 0) near = Math.max(near, (8 + ti0.alt) / ti0.mPerSu * K);   // hover up: same snappy climb (~8 m/s + doubling) on every planet   // never slower than ~5 m/s (x boost) near the ground
       const gMPerSu = gasState && gasState.h < GAS_FADE[0] ? gasState.it.b.radiusKm * 1000 / gasState.it.r : 0; if (gMPerSu) near = Math.max(near, 5 / gMPerSu * K);
       // speed follows the distance to the nearest thing, times the boost; capped per scale so a big boost can't fling you out of the universe
       const speed = Math.min(clamp(near * 0.9, 1e-13, 5e8) * boost, cam.loc.sys ? Infinity : cam.loc.gal ? 3000 : 3e6);
@@ -483,9 +484,11 @@ export async function init(opts = {}) {
         // Hovering up (vertical input) lifts off; sinking down to the ground lands again.
         if (grounded && (terr.it.b !== grounded.b || fly.input.y > 0.05 || ti.alt > 200)) grounded = null;
         if (!grounded && terr.it.b.landable && fly.input.y < -0.05 && ti.alt < clearance() + 0.6) grounded = { b: terr.it.b };
-        if (grounded) { const c = clearance(), h = ti.alt < c ? c : c + (ti.alt - c) * Math.exp(-dt * 12);
+        if (grounded) { const c = clearance(), idle = fly.input.lengthSq() === 0;
+          // idle: ease toward the ground both ways (a 1-2 s LOD height spike barely moves us); walking: rise at once, ease down
+          const h = ti.alt < c ? (idle ? c + (ti.alt - c) * Math.exp(-dt * 1.5) : c) : c + (ti.alt - c) * Math.exp(-dt * 12);
           cam.loc.p.copy(ti.bw).addScaledVector(ti.dirSys, (ti.surfR + h) / ti.mPerSu); tiCache = null; fly.vel.y = Math.min(fly.vel.y, 0); }
-        pushOutOfGround(ti);
+        if (!grounded || fly.input.lengthSq() > 0) pushOutOfGround(ti);
         // level the horizon as we come down: camera "up" turns toward the local vertical
         const k = clamp(1.2 - ti.alt / ti.R * 2, 0, 1);
         if (k > 0) {
