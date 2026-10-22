@@ -1,7 +1,7 @@
 // Space Explorer X 2 – engine. Seamless multi-scale renderer + navigation; exposes window.SE2 (see README.md).
 import * as THREE from '../scene/vendor/three.module.min.js?v=20261014b';
 import { createJoystick } from '../scene/joystick.js?v=20261014b';
-import { createSurface } from '../scene/surface.js?v=20261022d';
+import { createSurface } from '../scene/surface.js?v=20261022e';
 import { hash, rng, clamp, TAU, D2R, fmtDist, starName, smooth } from './util.js?v=20261014b';
 import { REAL_GALAXIES, galaxyById, galaxyTypeLabel, densityAt, SOL_GPOS, LOCAL_VOID } from './universe.js?v=20261014b';
 import { StarField, REAL_STARS, starById, starName_, sectorStars, LEVELS, CLASS_INFO } from './stars.js?v=20261014b';
@@ -346,7 +346,7 @@ export async function init(opts = {}) {
     const out = { alt: D - surfR, D, surfR, bw, qB, dirSys: v.divideScalar(Dsu), mPerSu: terr.mPerSu, R: terr.R };
     tiCache = { f: frameNo, x: p.x, y: p.y, z: p.z, v: out }; return out;
   }
-  let restAlt = null;
+  let grounded = null;   // THE landed state (single source of truth): { b } while standing on a rocky world's ground in free flight
   const clearance = () => 1.7 + (terr ? Math.min((terr.lastSp || terr.spacing) * 0.02, 1.5) : 0);   // eye height + small margin (the ground height already comes from the drawn mesh itself)   // eye height + margin for the drawn tile's coarseness under us
   function pushOutOfGround(ti) {   // returns true if the camera had to be lifted
     if (!ti) return false; const c = clearance(); if (ti.alt >= c) return false;
@@ -479,9 +479,12 @@ export async function init(opts = {}) {
       tiCache = null;
       const ti = terrInfo();
       if (ti) {
-        // parked after a fly-down touchdown: hold the resting height (LOD swaps can only ever push us up, so ease back down)
-        if (restAlt && (fly.input.lengthSq() > 0 || terr.it.b !== restAlt.b || ti.alt > 60)) restAlt = null;
-        if (restAlt && ti.alt > restAlt.h + 0.2) { cam.loc.p.copy(ti.bw).addScaledVector(ti.dirSys, (ti.surfR + Math.max(restAlt.h, ti.alt - 3 * dt)) / ti.mPerSu); tiCache = null; }
+        // standing on the ground: follow the visible terrain height both up and down (eye height only, no stacked margins).
+        // Hovering up (vertical input) lifts off; sinking down to the ground lands again.
+        if (grounded && (terr.it.b !== grounded.b || fly.input.y > 0.05 || ti.alt > 200)) grounded = null;
+        if (!grounded && terr.it.b.landable && fly.input.y < -0.05 && ti.alt < clearance() + 0.6) grounded = { b: terr.it.b };
+        if (grounded) { const c = clearance(), h = ti.alt < c ? c : c + (ti.alt - c) * Math.exp(-dt * 12);
+          cam.loc.p.copy(ti.bw).addScaledVector(ti.dirSys, (ti.surfR + h) / ti.mPerSu); tiCache = null; fly.vel.y = Math.min(fly.vel.y, 0); }
         pushOutOfGround(ti);
         // level the horizon as we come down: camera "up" turns toward the local vertical
         const k = clamp(1.2 - ti.alt / ti.R * 2, 0, 1);
@@ -534,6 +537,7 @@ export async function init(opts = {}) {
   // ---------- fly-down autopilot: from wherever we are to a few metres above the ground (or the cloud deck) of body e ----------
   const FD_TIME = 0.05;
   function flyDownStart(id) {
+    grounded = null;
     let e = typeof id === 'object' ? id : entity(id);
     if (!e && typeof id === 'string') { const r = search(id).find(x => x.kind === 'planet' || x.kind === 'moon') || search(id)[0]; e = r && entity(r.id); }
     if (!e || !e.b || !e.sys || (e.kind !== 'planet' && e.kind !== 'moon')) { console.warn('[SE2] flyDown: not a planet or moon', id); return false; }
@@ -587,7 +591,7 @@ export async function init(opts = {}) {
     if (na < (fd.best ?? Infinity) - 0.25) { fd.best = na; fd.still = 0; } else fd.still = (fd.still || 0) + dt;
     const settled = !e.b.landable || (onTerr && terr.ready);   // rocky: only once the real ground is under us
     const arrived = settled && (!e.b.landable ? Math.abs(na - target) < Math.max(1.5, target * 0.2) || (alt < 3000 && fd.still > 1.0) : Math.abs(na - target) < 1.5 || (na - target < 4 && fd.still > 4));
-    if (arrived || fd.t > 120) { const done = e; fd = null; restAlt = e.b.landable && arrived ? { b: e.b, h: target } : null; ev('se2:flydown-done', { id: done.id, name: done.name, landed: !!done.b.landable && arrived, deck: !done.b.landable && arrived }); }
+    if (arrived || fd.t > 120) { const done = e; fd = null; grounded = e.b.landable && onTerr && (arrived || alt < 150) ? { b: e.b } : null; ev('se2:flydown-done', { id: done.id, name: done.name, landed: !!grounded, deck: !done.b.landable && arrived }); }
   }
   function enterFree() {
     if (mode === 'free') return;
@@ -1261,7 +1265,7 @@ export async function init(opts = {}) {
       if (mode === 'landing' || mode === 'takeoff') return;
       fly.input.set(...v); if (fly.input.lengthSq() > 0) { fd = null; enterFree(); }
     },
-    flyDown: id => flyDownStart(id ?? (selected && selected.id) ?? (focus && focus.id)), cancelFlyDown() { fd = null; }, isFlyingDown: () => !!fd,
+    flyDown: id => flyDownStart(id ?? (selected && selected.id) ?? (focus && focus.id)), cancelFlyDown() { fd = null; }, isFlyingDown: () => !!fd, isLanded: () => mode === 'free' && !!grounded && !fd,
     setBoost(k) { k = Number(k); boost = clamp(isFinite(k) && k > 0 ? k : 1, 1, 1e5);
       const el = typeof document !== 'undefined' && document.getElementById('x2-boost');   // keep the ⚡ button label in step with API changes
       if (el) { el.textContent = '⚡' + (boost >= 1000 ? +(boost / 1000).toPrecision(3) + 'k' : +boost.toPrecision(3)) + '×'; el.classList.toggle('on', boost > 1); }
