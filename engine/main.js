@@ -1,7 +1,7 @@
 // Space Explorer X 2 – engine. Seamless multi-scale renderer + navigation; exposes window.SE2 (see README.md).
 import * as THREE from '../scene/vendor/three.module.min.js?v=20261014b';
 import { createJoystick } from '../scene/joystick.js?v=20261014b';
-import { createSurface } from '../scene/surface.js?v=20261014b';
+import { createSurface } from '../scene/surface.js?v=20261022a';
 import { hash, rng, clamp, TAU, D2R, fmtDist, starName, smooth } from './util.js?v=20261014b';
 import { REAL_GALAXIES, galaxyById, galaxyTypeLabel, densityAt, SOL_GPOS, LOCAL_VOID } from './universe.js?v=20261014b';
 import { StarField, REAL_STARS, starById, starName_, sectorStars, LEVELS, CLASS_INFO } from './stars.js?v=20261014b';
@@ -633,7 +633,7 @@ export async function init(opts = {}) {
     const place = d => { cam.loc = { gal: null, sys: e.sys, p: P.p.clone().addScaledVector(surfDir, d) }; lookQ(V().copy(surfDir).negate().applyQuaternion(e.sys.uq), Y.clone().applyQuaternion(e.sys.uq), cam.q); };
     if (L.kind === 'land') {
       const SW = 1.6;
-      if (t < SW) { active = 'space'; place(L.d0 + (r * 1.012 - L.d0) * easeIn(t / SW)); setFade((t - 1.2) / 0.4, L.color); }
+      if (t < SW) { active = 'space'; place(L.d0 + (r * 1.012 - L.d0) * easeIn(t / SW)); setFade((t - 1.2) / 0.4, L.color); surf.warmup(8); }   // build the landing-spot terrain while we dive in
       else { active = 'surface'; const k = (t - SW) / (T - SW); surf.update(dt, surfInput.set(0, 0, 0), 160 * (1 - easeOut(k)), -1.05 + (surf.state.pitch + 1.05) * easeOut(k)); setFade(1 - (t - SW) / 0.35, L.color); }
     } else {
       const SW = 0.8;

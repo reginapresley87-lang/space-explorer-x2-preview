@@ -46,7 +46,7 @@ vec3 skyL(vec3 d){ float az = atan(d.z, d.x) / 6.2831853 + .5; float v = sqrt(cl
 export function createSurface(opts = {}) {
   const renderer = opts.renderer;
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(62, 1, 0.1, 90000);
+  const camera = new THREE.PerspectiveCamera(62, 1, 0.25, 90000);
   const sunDir = new THREE.Vector3(0.55, 0.42, -0.72).normalize();
   let quality = opts.quality || 'medium', SEG = 24;
   const half = renderer && renderer.capabilities.isWebGL2 && (renderer.extensions.has('EXT_color_buffer_float') || renderer.extensions.has('EXT_color_buffer_half_float'));
@@ -381,11 +381,19 @@ export function createSurface(opts = {}) {
     state.pitch = 0.06;
     hLowCache = height(state.pos.x, state.pos.z);
     camera.position.set(state.pos.x, hLowCache + EYE + 160, state.pos.z);
-    selectTiles(camera.position, 400);
+    // pre-build the ground-level terrain for the landing spot (each pass refines one LOD level), so the surface is already
+    // complete when it's revealed instead of re-meshing level by level (popping + build stalls) right as we touch down
+    camY = null; warm = true; prewarm(120);
+    selectTiles(camera.position, 0);
     scatterRocks(Math.round(state.pos.x / 20) * 20, Math.round(state.pos.z / 20) * 20);
   }
-  const fwd = new THREE.Vector3(), right = new THREE.Vector3();
-  let budget = 6;
+  const fwd = new THREE.Vector3(), right = new THREE.Vector3(), groundP = new THREE.Vector3();
+  let budget = 6, warm = false, camY = null;
+  function prewarm(ms) {   // refine the tiles around the ground point below us (returns once done or out of time)
+    const t0 = performance.now();
+    groundP.set(state.pos.x, height(state.pos.x, state.pos.z) + EYE, state.pos.z);
+    for (let k = 0; k <= MAXL + 1; k++) { const left = ms - (performance.now() - t0); if (left <= 0) break; selectTiles(groundP, left); if (!queue.length) { warm = false; break; } }
+  }
   // input: x strafe, y hover up/down, z forward (each -1..1)
   function update(dt, input, alt = null, pitchOverride = null) {
     if (!spec) return;
@@ -399,13 +407,18 @@ export function createSurface(opts = {}) {
     if (Math.abs(state.pos.x - rockCenter.x) > 160 || Math.abs(state.pos.z - rockCenter.y) > 160) scatterRocks(Math.round(state.pos.x / 20) * 20, Math.round(state.pos.z / 20) * 20);
     let g = height(state.pos.x, state.pos.z); hLowCache = g;
     if (sea.visible) { g = Math.max(g, sea.position.y + 0.3); sea.position.x = state.pos.x; sea.position.z = state.pos.z; }
-    camera.position.set(state.pos.x, g + EYE + (alt ?? state.hover), state.pos.z);
+    // eye height follows the ground smoothly (no per-frame snapping to every bump), but never dips into it
+    const yT = g + EYE + (alt ?? state.hover);
+    camY = camY == null || alt != null ? yT : camY + (yT - camY) * (1 - Math.exp(-dt * 10));
+    camY = Math.max(camY, g + EYE * 0.7);
+    camera.position.set(state.pos.x, camY, state.pos.z);
     camera.quaternion.setFromEuler(new THREE.Euler(pitchOverride ?? state.pitch, state.yaw, 0, 'YXZ'));
     camera.updateMatrixWorld();
     shared.uCamW.value.copy(camera.position);
     sky.position.copy(camera.position); stars.position.copy(camera.position);
     if (spec.skyBody) skyBody.position.setFromSphericalCoords(60000, Math.PI / 2 - (spec.skyBody.elev ?? 0.5), spec.skyBody.azim ?? -0.6).add(camera.position);
     skyBody.rotation.y += dt * 0.02;
+    if (warm && alt != null) prewarm(12); else warm = false;   // finish the landing-spot terrain during the descent (on the ground the normal streaming takes over)
     selectTiles(camera.position, budget);
   }
   function look(dx, dy) { state.yaw -= dx * 0.004; state.pitch = Math.min(1.4, Math.max(-1.2, state.pitch - dy * 0.004)); }
@@ -422,5 +435,5 @@ export function createSurface(opts = {}) {
   function setQuality(q) { quality = q; const s2 = q === 'ultra' ? 48 : q === 'high' ? 32 : q === 'medium' ? 24 : 16; if (s2 !== SEG) { SEG = s2; clearTiles(); } budget = q === 'low' ? 4 : q === 'ultra' ? 8 : 6; }
   setQuality(quality);
   const fadeColor = () => { const v = spec && spec.atmo ? shared.uSkyAmb.value : null; return v ? new THREE.Color(Math.min(1, v.x * 2), Math.min(1, v.y * 2), Math.min(1, v.z * 2)) : new THREE.Color(0, 0, 0); };
-  return { _u: { shared, terrU }, scene, camera, enter, update, look, state, setQuality, setSun, sunInfo, fadeColor, height, get spec() { return spec; }, get tileCount() { return [...tiles.values()].filter(t => t.mesh.visible).length; } };
+  return { _u: { shared, terrU }, scene, camera, enter, update, warmup(ms) { if (warm) prewarm(ms); }, look, state, setQuality, setSun, sunInfo, fadeColor, height, get spec() { return spec; }, get tileCount() { return [...tiles.values()].filter(t => t.mesh.visible).length; } };
 }
