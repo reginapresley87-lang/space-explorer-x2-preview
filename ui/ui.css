@@ -137,3 +137,17 @@ body:has(#x2-title) #x2-ui,body:has(#x2-title) #se-joy{visibility:hidden}
  #x2-side{right:calc(max(8px,env(safe-area-inset-right)) + 80px)}
  #x2-panel{right:auto;width:min(420px,52vw);max-height:calc(100vh - 140px)}
 }
+/* iPhone fixes (round 14): info card */
+@media (pointer:coarse){
+ #x2-card .x{width:44px;height:44px;line-height:44px;font-size:22px}
+ #x2-card .acts button{min-height:44px}
+ #x2-card .acts .bm{flex:0 0 48px}
+}
+@media (pointer:coarse) and (max-width:600px){#x2-card{right:110px;bottom:calc(max(8px,env(safe-area-inset-bottom)) + 48px)}}
+@media (pointer:coarse) and (max-height:500px){#x2-card{right:calc(max(8px,env(safe-area-inset-right)) + 190px);left:150px;max-width:none;max-height:calc(100vh - 80px)}}
+@media (pointer:coarse) and (max-width:600px){#x2-flyhint{bottom:calc(max(8px,env(safe-area-inset-bottom)) + 48px + 46vh + 10px)}}
+@media (pointer:coarse) and (max-height:500px){
+ #x2-card{bottom:max(40px,env(safe-area-inset-bottom));max-height:calc(100vh - 150px)}
+ body:has(#x2-card[style*="block"]) #x2-alt{visibility:hidden}
+}
+@media (pointer:coarse){#x2-side #x2-boost{padding:0 2px!important;font-size:13px!important;letter-spacing:-.5px;white-space:nowrap;overflow:hidden}}

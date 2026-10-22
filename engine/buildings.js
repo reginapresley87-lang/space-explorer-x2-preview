@@ -8,7 +8,7 @@ const BUNDLE = { sydney: [-33.8568, 151.2153], melbourne: [-37.8183, 144.9671], 
 const bundled = new Map();   // name -> list | 'loading' | 'failed'
 function loadBundle(n) {
   bundled.set(n, 'loading');
-  fetch(new URL('../data/buildings/' + n + '.json?v=20261023a', import.meta.url)).then(r => r.ok ? r.json() : null).then(j => {
+  fetch(new URL('../data/buildings/' + n + '.json?v=20261023b', import.meta.url)).then(r => r.ok ? r.json() : null).then(j => {
     if (!j) { bundled.set(n, 'failed'); return; }
     const [la, lo] = j.c, out = [];
     for (const a of j.b) { const p = []; let y = 0, x = 0; for (let i = 1; i + 1 < a.length; i += 2) { y += a[i]; x += a[i + 1]; p.push(la + y * 1e-5, lo + x * 1e-5); } out.push([a[0], p]); if (out.length >= MAXB) break; }
