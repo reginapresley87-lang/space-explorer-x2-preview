@@ -114,8 +114,8 @@ export function initUI(SE2, opts = {}) {
       const where = st.system ? st.system.name : st.galaxy ? st.galaxy.name : 'Intergalactic space';
       const fi = st.focus && SE2.getInfo(st.focus);
       let _al=null;try{_al=SE2.getAltitude&&SE2.getAltitude()}catch(e){}const _nearLbl=_al&&_al.kind!=='star'&&isFinite(_al.meters)?(_al.kind==='gas'?(_al.meters<100000?'Cloud tops':null):_al.surface||_al.meters<2000?'Surface':_al.meters<100000?(_al.atmosphere===false?'Low orbit':'Atmosphere'):null):null;
-      const _landed=_al&&_al.kind==='rocky'&&_al.meters<25&&st.mode==='free';
-      hud.innerHTML = `<b>${_nearLbl || SCALE[st.scale] || ''}</b> · ${esc(_nearLbl&&_al.name?_al.name:where)}` + (_landed ? `<br>Landed · walk or hover with the controls` :
+      const _landed=_al&&_al.kind==='rocky'&&_al.meters<6&&st.mode==='free',_deck=_al&&_al.kind==='gas'&&_al.meters<100000&&st.mode==='free';
+      hud.innerHTML = `<b>${_nearLbl || SCALE[st.scale] || ''}</b> · ${esc(_nearLbl&&_al.name?_al.name:where)}` + (_landed ? `<br>Landed · walk or hover with the controls` : _deck ? `<br>Above the clouds · hover or fly` :
         (st.mode === 'orbit' && fi ? `<br>${esc(fi.name)}: ${esc(st.distanceText)}` : st.mode === 'flight' ? `<br>Flying… ${speedTxt(st.speedLyps)}` : st.mode === 'free' ? `<br>Free flight ${speedTxt(st.speedLyps)}` : ''));
     }
     const L = SE2.getLabels();
@@ -182,8 +182,8 @@ const target=m==null||m>20000?0:0.5*Math.pow(1-Math.max(m,0)/20000,1.5);v+=(targ
 (function x2fd(){if(!window.SE2||!document.getElementById('x2-hud'))return setTimeout(x2fd,200);
 const H=document.createElement('div');H.id='x2-flyhint';document.getElementById('x2-hud').parentNode.appendChild(H);let last='';
 setInterval(()=>{let a=null;try{a=SE2.getAltitude&&SE2.getAltitude()}catch(e){}
-const star=a&&(a.kind==='star'||a.star===true);const show=a&&!star&&!a.surface&&a.meters>=(a.kind==='gas'?3000:50)&&a.meters<2e7&&a.name&&!(SE2.isFlyingDown&&SE2.isFlyingDown());if(!show){H.style.display='none';last='';return;}
-const nm=a.name.replace(/[<>&]/g,''),can=!!SE2.flyDown,k=nm+can;H.style.display='block';
+const star=a&&(a.kind==='star'||a.star===true);const show=a&&!star&&!a.surface&&a.meters>=(a.kind==='gas'?3000:50)&&a.meters<2e7&&a.name&&!(SE2.isFlyingDown&&SE2.isFlyingDown());if(!show){H.style.display='none';if(last){H.innerHTML='';last='';}return;}
+const nm=a.name.replace(/[<>&]/g,''),can=!!SE2.flyDown,k=nm+can+(a.kind||'');H.style.display='block';
 if(k!==last){last=k;H.innerHTML=can?`<button>⬇ ${a.gas||a.kind==='gas'?'Dive into the clouds of':'Fly down to'} ${nm}</button>`:`⬇ Keep flying toward ${nm} to reach the surface`;
 const b=H.querySelector('button');if(b)b.onclick=()=>{try{window.SE_SFX&&SE_SFX('fly.mp3')}catch(e){}SE2.flyDown(a.id||nm)};}},250);})();
 // Optional support button: hidden until SUPPORT_URL is set to the Ko-fi link. The game stays free either way.

@@ -1,7 +1,7 @@
 // Space Explorer X 2 – engine. Seamless multi-scale renderer + navigation; exposes window.SE2 (see README.md).
 import * as THREE from '../scene/vendor/three.module.min.js?v=20261014b';
 import { createJoystick } from '../scene/joystick.js?v=20261014b';
-import { createSurface } from '../scene/surface.js?v=20261022c';
+import { createSurface } from '../scene/surface.js?v=20261022d';
 import { hash, rng, clamp, TAU, D2R, fmtDist, starName, smooth } from './util.js?v=20261014b';
 import { REAL_GALAXIES, galaxyById, galaxyTypeLabel, densityAt, SOL_GPOS, LOCAL_VOID } from './universe.js?v=20261014b';
 import { StarField, REAL_STARS, starById, starName_, sectorStars, LEVELS, CLASS_INFO } from './stars.js?v=20261014b';
@@ -346,6 +346,7 @@ export async function init(opts = {}) {
     const out = { alt: D - surfR, D, surfR, bw, qB, dirSys: v.divideScalar(Dsu), mPerSu: terr.mPerSu, R: terr.R };
     tiCache = { f: frameNo, x: p.x, y: p.y, z: p.z, v: out }; return out;
   }
+  let restAlt = null;
   const clearance = () => 1.7 + (terr ? Math.min((terr.lastSp || terr.spacing) * 0.02, 1.5) : 0);   // eye height + small margin (the ground height already comes from the drawn mesh itself)   // eye height + margin for the drawn tile's coarseness under us
   function pushOutOfGround(ti) {   // returns true if the camera had to be lifted
     if (!ti) return false; const c = clearance(); if (ti.alt >= c) return false;
@@ -478,6 +479,9 @@ export async function init(opts = {}) {
       tiCache = null;
       const ti = terrInfo();
       if (ti) {
+        // parked after a fly-down touchdown: hold the resting height (LOD swaps can only ever push us up, so ease back down)
+        if (restAlt && (fly.input.lengthSq() > 0 || terr.it.b !== restAlt.b || ti.alt > 60)) restAlt = null;
+        if (restAlt && ti.alt > restAlt.h + 0.2) { cam.loc.p.copy(ti.bw).addScaledVector(ti.dirSys, (ti.surfR + Math.max(restAlt.h, ti.alt - 3 * dt)) / ti.mPerSu); tiCache = null; }
         pushOutOfGround(ti);
         // level the horizon as we come down: camera "up" turns toward the local vertical
         const k = clamp(1.2 - ti.alt / ti.R * 2, 0, 1);
@@ -582,8 +586,8 @@ export async function init(opts = {}) {
     // arrived: at the target height, or no longer getting lower (the ground clearance holds us up) for ~1.5 s, or a generous timeout
     if (na < (fd.best ?? Infinity) - 0.25) { fd.best = na; fd.still = 0; } else fd.still = (fd.still || 0) + dt;
     const settled = !e.b.landable || (onTerr && terr.ready);   // rocky: only once the real ground is under us
-    const arrived = settled && (Math.abs(na - target) < Math.max(1.5, target * 0.2) || (alt < 3000 && fd.still > 1.0));
-    if (arrived || fd.t > 120) { const done = e; fd = null; ev('se2:flydown-done', { id: done.id, name: done.name, landed: !!done.b.landable && arrived, deck: !done.b.landable && arrived }); }
+    const arrived = settled && (!e.b.landable ? Math.abs(na - target) < Math.max(1.5, target * 0.2) || (alt < 3000 && fd.still > 1.0) : Math.abs(na - target) < 1.5 || (na - target < 4 && fd.still > 4));
+    if (arrived || fd.t > 120) { const done = e; fd = null; restAlt = e.b.landable && arrived ? { b: e.b, h: target } : null; ev('se2:flydown-done', { id: done.id, name: done.name, landed: !!done.b.landable && arrived, deck: !done.b.landable && arrived }); }
   }
   function enterFree() {
     if (mode === 'free') return;
@@ -828,7 +832,9 @@ export async function init(opts = {}) {
   }
   function labels() {
     if (active === 'surface' || mode === 'landing' || mode === 'takeoff') return [];
-    if (gasState && gasState.h < GAS_LAYERS.haze) return [];   // inside a giant's haze: far stars / galaxies can't be seen through it
+    if (gasState && gasState.h < GAS_LAYERS.haze) return [];
+    { const ti = terr && terr.group.visible ? terrInfo() : null, A = terr && terr.it.A;   // same inside a rocky world's air (Mars, Earth...)
+      if (ti && A && (terr.it.atmo || terr.it.b.atmo) && ti.D - terr.R < (A.top || 0) * terr.R) return []; }   // inside a giant's haze: far stars / galaxies can't be seen through it
     const out = [], taken = [];
     let nStar = 0;
     const cs = candidates().filter(c => c.kind === 'galaxy' ? (c.ang > 0.01 || c.pri > 1.5) : c.star ? (c.star.real ? c.mag < 6 : c.mag < 0.5 && nStar++ < 5) : c.kind !== 'moon' || c.px > 3)
