@@ -182,7 +182,7 @@ const target=m==null||m>20000?0:0.5*Math.pow(1-Math.max(m,0)/20000,1.5);v+=(targ
 (function x2fd(){if(!window.SE2||!document.getElementById('x2-hud'))return setTimeout(x2fd,200);
 const H=document.createElement('div');H.id='x2-flyhint';document.getElementById('x2-hud').parentNode.appendChild(H);let last='';
 setInterval(()=>{let a=null;try{a=SE2.getAltitude&&SE2.getAltitude()}catch(e){}
-const star=a&&(a.kind==='star'||a.star===true);const show=a&&!star&&!a.surface&&!(SE2.isLanded&&SE2.isLanded())&&a.meters>=(a.kind==='gas'?3000:50)&&a.meters<2e7&&a.name&&!(SE2.isFlyingDown&&SE2.isFlyingDown());if(!show){H.style.display='none';if(last){H.innerHTML='';last='';}return;}
+const star=a&&(a.kind==='star'||a.star===true);const show=a&&!star&&!a.surface&&!(SE2.isLanded&&SE2.isLanded())&&a.meters>=(a.kind==='gas'?3000:50)&&a.meters<1e8&&a.name&&!(SE2.isFlyingDown&&SE2.isFlyingDown());if(!show){H.style.display='none';if(last){H.innerHTML='';last='';}return;}
 const nm=a.name.replace(/[<>&]/g,''),can=!!SE2.flyDown,k=nm+can+(a.kind||'');H.style.display='block';
 if(k!==last||!H.textContent.trim()){last=k;H.innerHTML=can?`<button>⬇ ${a.gas||a.kind==='gas'?'Dive into the clouds of':'Fly down to'} ${nm}</button>`:`⬇ Keep flying toward ${nm} to reach the surface`;
 const b=H.querySelector('button');if(b)b.onclick=()=>{try{window.SE_SFX&&SE_SFX('fly.mp3')}catch(e){}SE2.flyDown(a.id||nm)};}},250);})();

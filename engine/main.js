@@ -346,6 +346,7 @@ export async function init(opts = {}) {
     const out = { alt: D - surfR, D, surfR, bw, qB, dirSys: v.divideScalar(Dsu), mPerSu: terr.mPerSu, R: terr.R };
     tiCache = { f: frameNo, x: p.x, y: p.y, z: p.z, v: out }; return out;
   }
+  let hoverLast = 0;
   let grounded = null;   // THE landed state (single source of truth): { b } while standing on a rocky world's ground in free flight
   const clearance = () => 1.7 + (terr ? Math.min((terr.lastSp || terr.spacing) * 0.02, 1.5) : 0);   // eye height + small margin (the ground height already comes from the drawn mesh itself)   // eye height + margin for the drawn tile's coarseness under us
   function pushOutOfGround(ti) {   // returns true if the camera had to be lifted
@@ -432,6 +433,7 @@ export async function init(opts = {}) {
       if (fd) flyDownStep(dt);
       let near = nearestDistLy();
       const ti0 = terrInfo(); if (ti0 && ti0.alt < 2e4) near = Math.max(near, 5 / ti0.mPerSu * K);
+      if (ti0 && ti0.alt < 2e4 && fly.input.y > 0 && !fd) { const n = performance.now(); if (hoverLast) dt = clamp((n - hoverLast) / 1000, dt, 0.4); hoverLast = n; } else hoverLast = 0;   // hover clock: real time (heavy terrain frames hit the 0.1 s cap)
       if (ti0 && ti0.alt < 2e4 && fly.input.y > 0) near = Math.max(near, (8 + ti0.alt) / ti0.mPerSu * K);   // hover up: same snappy climb (~8 m/s + doubling) on every planet   // never slower than ~5 m/s (x boost) near the ground
       const gMPerSu = gasState && gasState.h < GAS_FADE[0] ? gasState.it.b.radiusKm * 1000 / gasState.it.r : 0; if (gMPerSu) near = Math.max(near, 5 / gMPerSu * K);
       // speed follows the distance to the nearest thing, times the boost; capped per scale so a big boost can't fling you out of the universe
