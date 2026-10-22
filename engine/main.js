@@ -1,7 +1,7 @@
 // Space Explorer X 2 – engine. Seamless multi-scale renderer + navigation; exposes window.SE2 (see README.md).
 import * as THREE from '../scene/vendor/three.module.min.js?v=20261014b';
 import { createJoystick } from '../scene/joystick.js?v=20261014b';
-import { createSurface } from '../scene/surface.js?v=20261022g';
+import { createSurface } from '../scene/surface.js?v=20261022h';
 import { hash, rng, clamp, TAU, D2R, fmtDist, starName, smooth } from './util.js?v=20261014b';
 import { REAL_GALAXIES, galaxyById, galaxyTypeLabel, densityAt, SOL_GPOS, LOCAL_VOID } from './universe.js?v=20261014b';
 import { StarField, REAL_STARS, starById, starName_, sectorStars, LEVELS, CLASS_INFO } from './stars.js?v=20261014b';
@@ -840,6 +840,7 @@ export async function init(opts = {}) {
   function labels() {
     if (active === 'surface' || mode === 'landing' || mode === 'takeoff') return [];
     if (gasState && gasState.h < GAS_LAYERS.haze) return [];
+    if (grounded) return [];   // standing on the ground (airless worlds too): no other bodies' labels over the terrain
     { const ti = terr && terr.group.visible ? terrInfo() : null, A = terr && terr.it.A;   // same inside a rocky world's air (Mars, Earth...)
       if (ti && A && (terr.it.atmo || terr.it.b.atmo) && ti.D - terr.R < (A.top || 0) * terr.R) return []; }   // inside a giant's haze: far stars / galaxies can't be seen through it
     const out = [], taken = [];
