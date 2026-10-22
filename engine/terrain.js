@@ -12,6 +12,7 @@ varying vec3 vObj, vN, vW, vDet; varying vec2 vUv; varying float vSea, vDistM;
 void main(){ vObj = aObj; vUv = vec2(0.); vDet = aDet; vSea = aSea; vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal);
   vDistM = length(w.xyz - cameraPosition) * uMPerSu; gl_Position = projectionMatrix * viewMatrix * w; }`;
 const PARS = `
+const float uNightGlow = .1;   // night-side moonlight strength
 varying vec3 vDet; varying float vSea, vDistM; uniform float uMPerSu, uHazeK, uHazeTau, uHazeH, uCamH, uRm; uniform vec3 uHaze;
 float tDet(vec3 p){ return vn(p / 3.1) * .22 + vn(p / 11.) * .3 + vn(p / 47.) * .26 + vn(p / 230.) * .22; }
 vec3 terrAlbedo(vec3 col, vec3 N, vec3 up){
@@ -66,7 +67,7 @@ function terrainFS(src, tex) {
   }`);
   }
   const i = src.lastIndexOf('gl_FragColor = vec4(o, 1.);'); if (i < 0) throw new Error('[terrain] no output');
-  return src.slice(0, i) + 'gl_FragColor = vec4(terrHaze(o), 1.);' + src.slice(i + 'gl_FragColor = vec4(o, 1.);'.length);
+  return src.slice(0, i) + 'gl_FragColor = vec4(terrHaze(o) + (col * .8 + .2) * vec3(.55, .65, 1.) * uNightGlow * (1. - smoothstep(-.3, .05, dot(tUp, L))), 1.);   // + faint cool moonlight on the night side (after the haze)' + src.slice(i + 'gl_FragColor = vec4(o, 1.);'.length);
 }
 const matCache = new WeakMap();
 function terrainMaterial(base, isTex, mPerSu) {
