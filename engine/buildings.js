@@ -3,6 +3,18 @@
 import * as THREE from '../scene/vendor/three.module.min.js?v=20261014b';
 const EP = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter'];
 const D = Math.PI / 180, CELL = 0.004, RAD = 400, MAXB = 1500, mem = new Map();
+// bundled footprints (data/buildings/*.json, ~1 km around each spot; offline-safe); live Overpass everywhere else
+const BUNDLE = { sydney: [-33.8568, 151.2153], melbourne: [-37.8183, 144.9671], brisbane: [-27.4698, 153.0251], darwin: [-12.4655, 130.8456], surfers: [-28.0023, 153.4310] };
+const bundled = new Map();   // name -> list | 'loading' | 'failed'
+function loadBundle(n) {
+  bundled.set(n, 'loading');
+  fetch(new URL('../data/buildings/' + n + '.json?v=20261022l', import.meta.url)).then(r => r.ok ? r.json() : null).then(j => {
+    if (!j) { bundled.set(n, 'failed'); return; }
+    const [la, lo] = j.c, out = [];
+    for (const a of j.b) { const p = []; let y = 0, x = 0; for (let i = 1; i + 1 < a.length; i += 2) { y += a[i]; x += a[i + 1]; p.push(la + y * 1e-5, lo + x * 1e-5); } out.push([a[0], p]); if (out.length >= MAXB) break; }
+    bundled.set(n, out);
+  }).catch(() => bundled.set(n, 'failed'));
+}
 export function llDir(lat, lon, o = new THREE.Vector3()) { const c = Math.cos(lat * D); return o.set(c * Math.cos(lon * D), Math.sin(lat * D), -c * Math.sin(lon * D)); }
 export function dirLL(x, y, z) { const r = Math.hypot(x, y, z) || 1; return [Math.asin(Math.max(-1, Math.min(1, y / r))) / D, Math.atan2(-z, x) / D]; }
 function hOf(t) { const h = parseFloat(t.height); if (h > 0 && h < 900) return h; const l = parseFloat(t['building:levels']); return l > 0 && l < 200 ? l * 3.2 : 6; }
@@ -59,7 +71,14 @@ export function createBuildings(layer) {
       if (!terr || terr.it.b.key !== 'earth' || alt > 2000 || !terr.group.visible) { if (alt > 4000 || !terr || terr.it.b.key !== 'earth') drop(); showCredit(false); return; }
       if (mesh && mesh.parent !== terr.group) drop();
       const [lat, lon] = dirLL(x, y, z), cy = Math.round(lat / CELL), cx = Math.round(lon / CELL), key = cy + ':' + cx, clat = cy * CELL, clon = cx * CELL;
-      showCredit(!!mesh); mat.color.setScalar(.06 + .94 * Math.min(1, Math.max(0, (sunUp + .08) / .35)));   // dim with the daylight
+      mat.color.setScalar(.06 + .94 * Math.min(1, Math.max(0, (sunUp + .08) / .35)));   // dim with the daylight
+      for (const n in BUNDLE) { const [la, lo] = BUNDLE[n], dy = (lat - la) * 111e3, dx = (lon - lo) * 111e3 * Math.cos(la * D);
+        if (dx * dx + dy * dy > 1100 * 1100) continue;
+        const st = bundled.get(n); if (st === undefined) loadBundle(n);
+        if (Array.isArray(st)) { if (meshKey !== 'b:' + n || (mesh && mesh.parent !== terr.group)) build(terr, 'b:' + n, st, la, lo); showCredit(!!mesh); return; }
+        if (st !== 'failed') return;   // still loading: wait instead of asking Overpass
+      }
+      showCredit(!!mesh);
       if (key === meshKey) return;
       let list = mem.get(key);
       if (!list) { try { const s = localStorage.getItem('se2osm:' + key); if (s) { list = JSON.parse(s); mem.set(key, list); } } catch (e) {} }
